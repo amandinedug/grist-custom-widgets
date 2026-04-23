@@ -1,13 +1,4 @@
 <!DOCTYPE html>
-<!-- ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-     MINISTÈRE DE L'EUROPE ET DES AFFAIRES ÉTRANGÈRES
-     DNUM / SIN / PSI / CSNC
-     ─────────────────────────────────────────────────────────────────────────
-     Widget    : Compteur de lignes
-     Version   : 1.0 — 2026
-     Auteur    : CSNC
-     Dépendances : DSFR 1.13.1 · grist-plugin-api.js
-     ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■ -->
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
@@ -17,10 +8,8 @@
     <!-- API Grist -->
     <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
 
-    <!-- DSFR CSS — version (1.13.1) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr/dsfr.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr/utility/utilities.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/utility/icons/icons.min.css">
+    <!-- DSFR CSS — version (1.14.4) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.14.4/dist/dsfr/dsfr.min.css">
 
     <style>
         /* === SECTION : LAYOUT === */
@@ -71,7 +60,6 @@
             width: 100%;
             height: 20px;
             border-radius: 2px;
-            /* dimensions réduites pour le mini fr-callout */
             padding: 0 !important;
             margin: 0 !important;
             min-height: 0 !important;
@@ -156,11 +144,7 @@
         </ul>
 
     </div>
-
-    <!-- DSFR JS — version (1.13.1) -->
-    <script src="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr/dsfr.module.min.js" type="module"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr/dsfr.nomodule.min.js" nomodule></script>
-
+    
 <script>
 'use strict';
 
@@ -206,7 +190,7 @@ function masquerLoader() {
 
 // ============= SECTION : CONFIGURATION =============
 
-/* Palette des couleurs fr-callout DSFR 1.13.1 (validées visuellement) */
+/* Palette des couleurs fr-callout DSFR 1.13.1 */
 var COULEURS = [
     { id: '',                       nom: 'Défaut'   },
     { id: 'green-tilleul-verveine', nom: 'Tilleul'  },
@@ -231,8 +215,6 @@ var snapshot        = null;
 
 /**
  * Applique une couleur DSFR sur un élément fr-callout.
- * @param {HTMLElement} el - Élément cible
- * @param {string} couleurId - Identifiant de couleur (ex: 'blue-ecume')
  */
 function appliquerCouleur(el, couleurId) {
     COULEURS.forEach(function(c) {
@@ -316,7 +298,6 @@ function annulerOptions() {
 
 /**
  * Initialise le widget Grist.
- * Appelé sur DOMContentLoaded.
  */
 function initGrist() {
     construireSwatches();
