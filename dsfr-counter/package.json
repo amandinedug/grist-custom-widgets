@@ -1,0 +1,22 @@
+{
+  "name": "@amandinedug/widget-compteur-lignes",
+  "description": "Displays the row count of a linked Grist table with a configurable label and DSFR color variants.",
+  "homePage": "https://github.com/amandinedug/grist-custom-widgets",
+  "version": "1.0.0",
+  "grist": {
+    "name": "Compteur de lignes",
+    "url": "https://amandinedug.github.io/grist-custom-widgets/compteur-lignes/index.html",
+    "widgetId": "@amandinedug/widget-compteur-lignes",
+    "published": true,
+    "accessLevel": "read table",
+    "renderAfterReady": true,
+    "description": "Displays the row count of a linked Grist table with a configurable label and DSFR color variants.",
+    "authors": [
+      {
+        "name": "Amandine Dugrain",
+        "url": "https://github.com/amandinedug"
+      }
+    ],
+    "isGristLabsMaintained": false
+  }
+}
