@@ -14,6 +14,12 @@ Un widget pour gérer vos réunions directement dans Grist, sans quitter votre b
 - 🌍 **Jours fériés** — Affichage des jours fériés de 45 pays via l'API publique [date.nager.at](https://date.nager.at), sélection persistée par document.
 - 🏖️ **Absences équipe** — Si une table `CONGES` est renseignée, les absences apparaissent en vue semaine sous les en-têtes de jours.
 
+
+<img width="1140" height="775" alt="Capture d’écran 2026-05-15 à 00 19 34" src="https://github.com/user-attachments/assets/106b5f9f-b158-4f6d-9c5e-1a57cae033c0" />
+<img width="1142" height="781" alt="Capture d’écran 2026-05-15 à 00 19 42" src="https://github.com/user-attachments/assets/5392af8b-269e-4389-a699-97c2e10aeec9" />
+<img width="1121" height="664" alt="Capture d’écran 2026-05-15 à 00 20 02" src="https://github.com/user-attachments/assets/19f0a7eb-3a86-47e7-9073-b518598dd207" />
+
+
 ---
 
 ## Installation
