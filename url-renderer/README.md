@@ -17,7 +17,7 @@ A clean, simple widget for Grist that displays URLs in an embedded iframe. Perfe
 ### Option 1: Direct Repository Link (Recommended)
 
 1. Create a new custom URL widget in your Grist document
-2. Use this repository URL as the widget source: `https://agrippaharfleur.github.io/grist-custom-widgets/url-renderer/`
+2. Use this repository URL as the widget source: `https://amandinedug.github.io/grist-custom-widgets/url-renderer/`
 
 3. Configure the widget to connect to your URL column
 

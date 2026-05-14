@@ -62,7 +62,7 @@ Pour synchroniser plusieurs dropdowns entre différentes pages :
 ### Option 1 : URL personnalisée (Recommandé)
 
 1. Dans Grist, ajouter une vue personnalisée → **Custom Widget**
-2. URL : `https://agrippaharfleur.github.io/grist-custom-widgets/dsfr-dropdown/`
+2. URL : `https://amandinedug.github.io/grist-custom-widgets/dsfr-dropdown/`
 3. Mapper la colonne `OptionsToSelect` dans le panneau de configuration
 
 ### Option 2 : Custom Widget Builder
