@@ -1,103 +1,380 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-    <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
-    <style>
-        :root {
-            --color-canvas-default: #ffffff;
-            --color-border-default: #d0d7de;
-            --color-fg-default: #24292f;
-            --color-fg-muted: #57606a;
-            --color-neutral-muted: #f6f8fa;
-            --color-neutral-subtle: #eaeef2;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compteur de lignes</title>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <style>
+    /* ── VARIABLES ──────────────────────────────────────────────────────────── */
+    :root {
+      --bg:         #ffffff;
+      --bg-sec:     #f7f7f5;
+      --text:       #37352f;
+      --text-2:     #787774;
+      --text-muted: #a8a29e;
+      --border:     #e3e2e0;
+      --border-2:   #d3d1cb;
+      --accent:     #2383e2;
+      --r-sm: 4px; --r-md: 8px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:         #191919;
+        --bg-sec:     #252525;
+        --text:       #cfcfcf;
+        --text-2:     #9b9b9b;
+        --text-muted: #686868;
+        --border:     #373737;
+        --border-2:   #4a4a4a;
+        --accent:     #529cca;
+      }
+    }
 
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-            font-size: 14px;
-            line-height: 1.5;
-            color: var(--color-fg-default);
-        }
+    /* ── COULEURS NOTION — light ─────────────────────────────────────────────
+       Palette officielle Notion (background colors + text colors)             */
+    .color-default { --c-bg: var(--bg-sec); --c-border: var(--border);  --c-num: var(--text);  --c-lbl: var(--text-2); }
+    .color-gray    { --c-bg: #f1f1ef;       --c-border: #dededb;        --c-num: #9b9b9b;      --c-lbl: #9b9b9b;       }
+    .color-brown   { --c-bg: #f4eeee;       --c-border: #e8dddc;        --c-num: #64473a;      --c-lbl: #64473a;       }
+    .color-orange  { --c-bg: #fbecdd;       --c-border: #f5d5b0;        --c-num: #d9730d;      --c-lbl: #d9730d;       }
+    .color-yellow  { --c-bg: #fbf3db;       --c-border: #f5e5a0;        --c-num: #dfab01;      --c-lbl: #dfab01;       }
+    .color-green   { --c-bg: #edf3ec;       --c-border: #c6e0c3;        --c-num: #0f7b6c;      --c-lbl: #0f7b6c;       }
+    .color-blue    { --c-bg: #e7f3f8;       --c-border: #c0dff0;        --c-num: #2383e2;      --c-lbl: #2383e2;       }
+    .color-purple  { --c-bg: #f4f0f8;       --c-border: #ddd0ea;        --c-num: #9065b0;      --c-lbl: #9065b0;       }
+    .color-pink    { --c-bg: #fbf2f5;       --c-border: #f0d0e2;        --c-num: #c14a8a;      --c-lbl: #c14a8a;       }
+    .color-red     { --c-bg: #fdecea;       --c-border: #f5c5c2;        --c-num: #e03e3e;      --c-lbl: #e03e3e;       }
 
-        .container {
-            padding: 16px;
-            border: 1px solid var(--color-border-default);
-            border-radius: 6px;
-            background-color: var(--color-canvas-default);
-            margin: 16px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-        }
+    /* ── COULEURS NOTION — dark ─────────────────────────────────────────────── */
+    @media (prefers-color-scheme: dark) {
+      .color-default { --c-bg: var(--bg-sec); --c-border: var(--border); --c-num: var(--text); --c-lbl: var(--text-2); }
+      .color-gray    { --c-bg: #2f2f2f;  --c-border: #3d3d3d;  --c-num: #979797;  --c-lbl: #979797; }
+      .color-brown   { --c-bg: #362c28;  --c-border: #4a3d38;  --c-num: #9b7f72;  --c-lbl: #9b7f72; }
+      .color-orange  { --c-bg: #3d2b1a;  --c-border: #5a3e25;  --c-num: #c47a31;  --c-lbl: #c47a31; }
+      .color-yellow  { --c-bg: #3b3120;  --c-border: #56462d;  --c-num: #c9a234;  --c-lbl: #c9a234; }
+      .color-green   { --c-bg: #1e2e2a;  --c-border: #2c4038;  --c-num: #4aaa78;  --c-lbl: #4aaa78; }
+      .color-blue    { --c-bg: #1e2d3a;  --c-border: #2c4052;  --c-num: #4a9bc9;  --c-lbl: #4a9bc9; }
+      .color-purple  { --c-bg: #2c2538;  --c-border: #3e3452;  --c-num: #8b65c4;  --c-lbl: #8b65c4; }
+      .color-pink    { --c-bg: #382030;  --c-border: #4f2e44;  --c-num: #c46aaa;  --c-lbl: #c46aaa; }
+      .color-red     { --c-bg: #381f1f;  --c-border: #522d2d;  --c-num: #d26060;  --c-lbl: #d26060; }
+    }
 
-        .stats-group {
-            background-color: var(--color-neutral-muted); /* CUSTOMIZE BACKGROUND COLOR HERE */
-            border: 1px solid var(--color-border-default);
-            border-radius: 6px;
-            padding: 16px;
-            text-align: center;
-        }
+    /* ── RESET ──────────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        .count {
-            font-size: 32px;
-            font-weight: 600;
-            color: var(--color-fg-default);
-            margin: 4px 0;
-            letter-spacing: -0.5px;
-        }
+    body {
+      font-family: var(--font);
+      font-size: 14px;
+      color: var(--text);
+      background: var(--bg);
+      min-height: 100vh;
+      padding: 16px;
+    }
 
-        .label {
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--color-fg-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
+    /* ── ERROR BANNER ───────────────────────────────────────────────────────── */
+    .error-banner {
+      border-radius: var(--r-sm);
+      padding: 8px 12px;
+      font-size: 13px;
+      margin-bottom: 12px;
+      background: #fdecea; color: #e03e3e; border: 1px solid #f5c5c2;
+    }
+    @media (prefers-color-scheme: dark) {
+      .error-banner { background: #381f1f; border-color: #522d2d; color: #d26060; }
+    }
 
-        .tooltip {
-            position: relative;
-            display: inline-block;
-            cursor: help;
-        }
+    /* ── COUNTER CARD ───────────────────────────────────────────────────────── */
+    .counter-card {
+      border-radius: var(--r-md);
+      padding: 24px 20px 20px;
+      background: var(--c-bg, var(--bg-sec));
+      border: 1px solid var(--c-border, var(--border));
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: background .2s, border-color .2s;
+    }
 
-        .tooltip:after {
-            content: "Total number of rows in the table"; /* CUSTOMIZE TOOLTIP TEXT HERE */
-            position: absolute;
-            background: var(--color-fg-default);
-            color: var(--color-canvas-default);
-            padding: 5px 10px;
-            border-radius: 3px;
-            font-size: 12px;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            white-space: nowrap;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.2s;
-            margin-bottom: 5px;
-        }
+    .counter-number {
+      font-size: 3.5rem;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      color: var(--c-num, var(--text));
+      transition: color .2s;
+    }
 
-        .tooltip:hover:after {
-            opacity: 1;
-            visibility: visible;
-        }
+    .counter-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--c-lbl, var(--text-2));
+      transition: color .2s;
+    }
 
-        /* Optional hover effect */
-        .stats-group:hover {
-            background-color: var(--color-neutral-subtle); /* CUSTOMIZE HOVER COLOR HERE */
-            transition: background-color 0.2s ease;
-        }
-    </style>
+    /* ── CONFIG PANEL ───────────────────────────────────────────────────────── */
+    .config-panel { display: flex; flex-direction: column; gap: 18px; }
+    .config-group { display: flex; flex-direction: column; gap: 5px; }
+
+    .config-lbl {
+      font-size: 11px; font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+
+    .config-input {
+      width: 100%; padding: 7px 10px;
+      border: 1px solid var(--border); border-radius: var(--r-sm);
+      background: var(--bg); color: var(--text);
+      font-family: var(--font); font-size: 14px;
+      outline: none; transition: border-color .15s;
+    }
+    .config-input:focus { border-color: var(--accent); }
+    .config-input::placeholder { color: var(--text-muted); }
+
+    /* ── SWATCHES ───────────────────────────────────────────────────────────── */
+    .swatch-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .swatch {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      cursor: pointer;
+      /* la couleur du swatch = fond de la couleur correspondante */
+      background: var(--c-bg, var(--bg-sec));
+      border: 1.5px solid var(--c-border, var(--border));
+      transition: transform .12s, box-shadow .12s;
+    }
+    .swatch:hover { transform: scale(1.12); }
+    .swatch.selected {
+      transform: scale(1.12);
+      box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text);
+    }
+
+    /* ── PREVIEW ────────────────────────────────────────────────────────────── */
+    .preview-lbl {
+      font-size: 11px; font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+    .counter-card.preview .counter-number { font-size: 2.25rem; }
+
+    /* ── BUTTONS ────────────────────────────────────────────────────────────── */
+    .btn-group { display: flex; gap: 8px; }
+    .btn {
+      padding: 7px 14px; border-radius: var(--r-sm);
+      font-size: 13px; font-weight: 500;
+      font-family: var(--font); border: none;
+      cursor: pointer; transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary   { background: var(--accent); color: #fff; }
+    .btn-secondary {
+      background: var(--bg-sec); color: var(--text-2);
+      border: 1px solid var(--border);
+    }
+
+    .hidden { display: none !important; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="stats-group">
-            <div class="tooltip">
-                <div class="count" id="rowCount">0</div>
-                <div class="label">Rows</div>
-            </div>
-        </div>
+
+  <!-- Error -->
+  <div id="error-banner" class="error-banner hidden" role="alert" aria-live="assertive">
+    <span id="error-msg">Une erreur est survenue.</span>
+  </div>
+
+  <!-- Vue normale -->
+  <div id="view-normal">
+    <div class="counter-card color-default" id="counter-card">
+      <div class="counter-number" id="row-count">—</div>
+      <div class="counter-label" id="row-label"></div>
     </div>
-    <script src="widget.js"></script>
+  </div>
+
+  <!-- Vue configuration -->
+  <div id="view-config" class="hidden">
+    <div class="config-panel">
+
+      <div class="config-group">
+        <label class="config-lbl" for="label-input">Label</label>
+        <input class="config-input" type="text" id="label-input"
+          placeholder="ex : projets actifs" autocomplete="off">
+      </div>
+
+      <div class="config-group">
+        <span class="config-lbl">Couleur</span>
+        <div class="swatch-grid" id="swatch-grid"></div>
+      </div>
+
+      <div>
+        <p class="preview-lbl">Prévisualisation</p>
+        <div class="counter-card preview color-default" id="preview-card">
+          <div class="counter-number" id="preview-count">42</div>
+          <div class="counter-label" id="preview-label"></div>
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-primary"   onclick="saveOptions()">Enregistrer</button>
+        <button class="btn btn-secondary" onclick="cancelOptions()">Annuler</button>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+'use strict';
+
+// ── Security ──────────────────────────────────────────────────────────────────
+function escapeHTML(s) {
+  var d = document.createElement('div');
+  d.textContent = String(s == null ? '' : s);
+  return d.innerHTML;
+}
+
+// ── Error ─────────────────────────────────────────────────────────────────────
+function showError(msg) {
+  document.getElementById('error-msg').textContent = msg || 'Une erreur est survenue.';
+  document.getElementById('error-banner').classList.remove('hidden');
+}
+function hideError() {
+  document.getElementById('error-banner').classList.add('hidden');
+}
+
+// ── Color palette ─────────────────────────────────────────────────────────────
+// Styles définis via classes CSS .color-* — le CSS gère light/dark mode.
+// JS applique uniquement les noms de classe.
+var COLORS = [
+  { id: 'default', name: 'Défaut'  },
+  { id: 'gray',    name: 'Gris'    },
+  { id: 'brown',   name: 'Marron'  },
+  { id: 'orange',  name: 'Orange'  },
+  { id: 'yellow',  name: 'Jaune'   },
+  { id: 'green',   name: 'Vert'    },
+  { id: 'blue',    name: 'Bleu'    },
+  { id: 'purple',  name: 'Violet'  },
+  { id: 'pink',    name: 'Rose'    },
+  { id: 'red',     name: 'Rouge'   },
+];
+
+function applyColor(cardEl, colorId) {
+  COLORS.forEach(function(c) { cardEl.classList.remove('color-' + c.id); });
+  cardEl.classList.add('color-' + (colorId || 'default'));
+}
+
+function getSelectedColorId() {
+  var sel = document.querySelector('.swatch.selected');
+  return sel ? sel.dataset.id : 'default';
+}
+
+function buildSwatches() {
+  var grid = document.getElementById('swatch-grid');
+  COLORS.forEach(function(c) {
+    var sw        = document.createElement('div');
+    // La classe color-* applique --c-bg comme background du swatch via CSS
+    sw.className  = 'swatch color-' + c.id;
+    sw.dataset.id = c.id;
+    sw.title      = c.name;
+    sw.addEventListener('click', function() {
+      document.querySelectorAll('.swatch').forEach(function(s) {
+        s.classList.remove('selected');
+      });
+      sw.classList.add('selected');
+      updatePreview();
+    });
+    grid.appendChild(sw);
+  });
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+var currentLabel = '';
+var currentColor = 'default';
+var snapshot     = null;
+
+// ── Preview ───────────────────────────────────────────────────────────────────
+function updatePreview() {
+  var label    = document.getElementById('label-input').value;
+  var previewL = document.getElementById('preview-label');
+  previewL.textContent   = label;
+  previewL.style.display = label ? '' : 'none';
+  applyColor(document.getElementById('preview-card'), getSelectedColorId());
+}
+
+// ── Options ───────────────────────────────────────────────────────────────────
+function saveOptions() {
+  try {
+    grist.widgetApi.setOption('label',   document.getElementById('label-input').value);
+    grist.widgetApi.setOption('colorId', getSelectedColorId());
+  } catch(e) {
+    showError('Impossible d\'enregistrer la configuration.');
+  }
+}
+
+function cancelOptions() {
+  if (snapshot !== null) {
+    currentLabel = snapshot.label;
+    currentColor = snapshot.colorId;
+    var labelEl = document.getElementById('row-label');
+    labelEl.textContent   = currentLabel;
+    labelEl.style.display = currentLabel ? '' : 'none';
+    applyColor(document.getElementById('counter-card'), currentColor);
+  }
+  document.getElementById('view-normal').classList.remove('hidden');
+  document.getElementById('view-config').classList.add('hidden');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function init() {
+  buildSwatches();
+  hideError();
+
+  document.getElementById('label-input').addEventListener('input', updatePreview);
+
+  grist.ready({
+    requiredAccess: 'read table',
+    allowSelectBy: true,
+    onEditOptions: function() {
+      snapshot = { label: currentLabel, colorId: currentColor };
+
+      document.getElementById('label-input').value = currentLabel;
+      document.querySelectorAll('.swatch').forEach(function(sw) {
+        sw.classList.toggle('selected', sw.dataset.id === currentColor);
+      });
+      updatePreview();
+
+      document.getElementById('view-normal').classList.add('hidden');
+      document.getElementById('view-config').classList.remove('hidden');
+    },
+  });
+
+  grist.onOptions(function(opts) {
+    opts         = opts || {};
+    currentLabel = opts.label   !== undefined ? opts.label   : '';
+    currentColor = opts.colorId !== undefined ? opts.colorId : 'default';
+
+    var labelEl = document.getElementById('row-label');
+    labelEl.textContent   = currentLabel;
+    labelEl.style.display = currentLabel ? '' : 'none';
+    applyColor(document.getElementById('counter-card'), currentColor);
+
+    document.getElementById('view-normal').classList.remove('hidden');
+    document.getElementById('view-config').classList.add('hidden');
+  });
+
+  grist.onRecords(function(records) {
+    try {
+      hideError();
+      var total = records ? records.length : 0;
+      document.getElementById('row-count').textContent = total.toLocaleString('fr-FR');
+    } catch(e) {
+      showError('Erreur lors de la mise à jour du compteur.');
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
 </body>
 </html>
