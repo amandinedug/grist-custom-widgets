@@ -99,7 +99,7 @@ Pour créer une nouvelle table sur Grist, suivez ces **étapes importantes** :
 ### Option 2 : URL personnalisée
 
 1. Ajouter une vue personnalisée → **URL personnalisée**
-2. Copier-coller l'URL : `https://amandinedug.github.io/grist-custom-widgets/dsfr-faq/`
+2. Copier-coller l'URL : `https://amandinedug.github.io/grist-custom-widgets/DSFR/dsfr-faq/`
 3. Mapper les colonnes dans le panneau de configuration
 
 ---

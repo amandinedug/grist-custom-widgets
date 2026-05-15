@@ -24,7 +24,7 @@ Ce widget utilise le Système de Design de l'État (DSFR). [Conformément à la 
 ### Option 1 : URL directe (recommandée)
 
 1. Dans votre document Grist, ajoutez un widget personnalisé (⊕ → Custom)
-2. Collez l'URL : `https://amandinedug.github.io/grist-custom-widgets/compteur-lignes/index.html`
+2. Collez l'URL : `https://amandinedug.github.io/grist-custom-widgets/DSFR/dsfr-compteur`
 3. Définissez le niveau d'accès sur **Read table**
 4. Liez le widget à la table dont vous souhaitez compter les lignes
 
