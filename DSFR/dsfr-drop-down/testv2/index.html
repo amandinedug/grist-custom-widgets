@@ -15,10 +15,10 @@
 <head>
   <meta charset="utf-8">
   <title>Drop-down Widget</title>
-  
+
   <!-- Typographie Marianne -->
   <link href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr/dsfr.min.css" rel="stylesheet">
-  
+
   <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
   <style>
     @font-face {
@@ -28,7 +28,7 @@
       font-style: normal;
       font-display: swap;
     }
-    
+
     @font-face {
       font-family: 'Marianne';
       src: url('https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/fonts/Marianne-Bold.woff2') format('woff2');
@@ -36,11 +36,11 @@
       font-style: normal;
       font-display: swap;
     }
-    
+
     * {
       box-sizing: border-box;
     }
-    
+
     body, html {
       margin: 0;
       padding: 0;
@@ -49,7 +49,7 @@
       background-color: var(--grist-theme-page-bg, #f6f6f6);
       font-family: 'Marianne', Arial, sans-serif;
     }
-    
+
     #container {
       position: absolute;
       top: 0;
@@ -59,7 +59,7 @@
       display: flex;
       align-items: stretch;
     }
-    
+
     #dropdown {
       --idle: transparent;
       --hover: var(--background-contrast-grey-hover);
@@ -68,11 +68,11 @@
       background-color: var(--background-contrast-grey);
 
       --data-uri-svg: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iIzE2MTYxNiIgZD0ibTEyIDEzLjEgNS00LjkgMS40IDEuNC02LjQgNi4zLTYuNC02LjRMNyA4LjFsNSA1eiIvPjwvc3ZnPg==');
-      
+
       -webkit-appearance: none;
       -moz-appearance: none;
       appearance: none;
-      
+
       background-image: var(--data-uri-svg);
       background-position: calc(100% - 1rem) 50%;
       background-repeat: no-repeat;
@@ -89,7 +89,7 @@
       height: 100%;
       cursor: pointer;
     }
-    
+
     #dropdown:disabled {
       --data-uri-svg: url(data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23929292' d='m12 13.1 5-4.9 1.4 1.4-6.4 6.3-6.4-6.4L7 8.1l5 5z'/%3E%3C/svg%3E);
       background-image: var(--data-uri-svg);
@@ -129,36 +129,44 @@
       color: #666;
       z-index: 5;
     }
-    
+
+    /* Panneau de configuration */
     #config {
       padding: 1rem;
       font-family: 'Marianne', Arial, sans-serif;
     }
-    
-    #config label {
+
+    #config-hint {
       display: block;
       margin-bottom: 0.5rem;
       font-size: 14px;
       font-weight: 700;
       color: #161616;
+      line-height: 1.4;
     }
-    
+
+    #config-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
     #config input {
-      width: 100%;
-      padding: 0.75rem;
+      flex: 1;
+      min-width: 0;
+      padding: 0.5rem 0.75rem;
       border: 1px solid #ddd;
       border-radius: 0.25rem;
       font-family: 'Marianne', Arial, sans-serif;
       font-size: 14px;
-      margin-bottom: 1rem;
     }
-    
+
     #config input:focus {
       outline: 2px solid #0a76f6;
       outline-offset: 2px;
       border-color: #0a76f6;
     }
-    
+
     #config button {
       padding: 0.5rem 1rem;
       background-color: #000091;
@@ -168,14 +176,15 @@
       font-family: 'Marianne', Arial, sans-serif;
       font-size: 14px;
       font-weight: 700;
+      white-space: nowrap;
       cursor: pointer;
       transition: background-color 0.2s;
     }
-    
+
     #config button:hover {
       background-color: #1212ff;
     }
-    
+
     #config button:active {
       background-color: #2323ff;
     }
@@ -188,9 +197,11 @@
     <select id="dropdown"></select>
   </div>
   <div id="config" style="display: none;">
-    <label for="sessionid">Session ID :</label>
-    <input type="text" id="sessionid" autocomplete="off">
-    <button id="save-btn">Appliquer</button>
+    <span id="config-hint">Entrez un identifiant unique pour synchroniser ce dropdown avec ceux des autres pages du document.</span>
+    <div id="config-row">
+      <input type="text" id="sessionid" autocomplete="off" placeholder="ex : selection_programme">
+      <button id="save-btn">Appliquer</button>
+    </div>
   </div>
   <script src="script.js"></script>
 </body>
