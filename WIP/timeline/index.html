@@ -546,7 +546,11 @@ var DAY_MS = 86400000;
 
 function secToDate(sec) {
   if (sec === null || sec === undefined) return null;
-  return new Date(sec * 1000);
+  var d = new Date(sec * 1000);
+  if (isNaN(d.getTime())) return null;
+  var y = d.getUTCFullYear();
+  if (y < 1990 || y > 2100) return null; // guards against a mis-mapped column producing a garbage date
+  return d;
 }
 function dateToSec(date) {
   return Math.floor(date.getTime() / 1000);
@@ -652,6 +656,12 @@ function computeRange() {
   if (maxEnd < today) maxEnd = today;
   state.rangeStart = addDays(utcMidnight(minStart), -7);
   state.rangeEnd = addDays(utcMidnight(maxEnd), 14);
+
+  var MAX_DAYS = 1500; // ~4 years — a hard ceiling so a bad date can never freeze the tab
+  if (daysBetween(state.rangeStart, state.rangeEnd) > MAX_DAYS) {
+    state.rangeEnd = addDays(state.rangeStart, MAX_DAYS);
+    showError('Some dates are outside a sane range and were clamped — check the Start/End column mapping.');
+  }
 }
 
 function xForDate(date) {
@@ -1080,13 +1090,13 @@ grist.onRecords(function (records, mappings) {
     state.sample = records && records[0] ? records[0] : null;
 
     state.tasks = records.map(function (r) {
-      var s = r[mappings.start];
-      var e = r[mappings.end];
+      var startDate = secToDate(r[mappings.start]);
+      var endDate = secToDate(r[mappings.end]);
       return {
         id: r.id,
         label: val(r[mappings.label]),
-        start: s ? utcMidnight(secToDate(s)) : null,
-        end: e ? utcMidnight(secToDate(e)) : null,
+        start: startDate ? utcMidnight(startDate) : null,
+        end: endDate ? utcMidnight(endDate) : null,
         color: firstChoice(r[mappings.color]),
         group: mappings.group ? val(r[mappings.group]) : '',
         tableExtra: mappings.tableFields ? joinExtra(mappings.tableFields.map(function (colId) { return r[colId]; })) : [],
