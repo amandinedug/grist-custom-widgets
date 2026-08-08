@@ -545,8 +545,8 @@ function joinExtra(arr) {
 var DAY_MS = 86400000;
 
 function secToDate(sec) {
-  if (sec === null || sec === undefined) return null;
-  var d = new Date(sec * 1000);
+  if (sec === null || sec === undefined || sec === '') return null;
+  var d = (typeof sec === 'number') ? new Date(sec * 1000) : new Date(sec); // number = Unix seconds, string = ISO (fetchSelectedTable serialises dates differently to docApi.fetchTable)
   if (isNaN(d.getTime())) return null;
   var y = d.getUTCFullYear();
   if (y < 1990 || y > 2100) return null; // guards against a mis-mapped column producing a garbage date
