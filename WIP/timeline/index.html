@@ -1058,15 +1058,24 @@ grist.onRecords(function (records, mappings) {
         timelineExtra: mappings.timelineFields ? joinExtra(m.timelineFields) : []
       };
     }).filter(function (t) { return t.start && t.end; });
-
-    loadChoiceColors(mappings.color).then(function () {
-      hideLoader();
-      render();
-    });
   } catch (err) {
     hideLoader();
     showError('Could not read the mapped data.', err);
+    return;
   }
+
+  loadChoiceColors(mappings.color).then(function () {
+    try {
+      hideLoader();
+      render();
+    } catch (err) {
+      hideLoader();
+      showError('Could not render the timeline.', err);
+    }
+  }).catch(function (err) {
+    hideLoader();
+    showError('Could not load colours.', err);
+  });
 });
 </script>
 </body>
