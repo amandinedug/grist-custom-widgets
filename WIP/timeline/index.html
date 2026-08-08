@@ -201,6 +201,19 @@
     border-radius: 3px;
     font-size: 0.8125rem;
   }
+  #debug-info {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    font-size: 0.6875rem;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-secondary);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  #debug-info:empty { display: none; }
 
   .timeline-scroll {
     overflow-x: auto;
@@ -441,6 +454,7 @@
 <main id="main">
   <div id="empty-state">
     Map <strong>Name</strong>, <strong>Start date</strong> and <strong>End date</strong> in the widget's config panel (the ⚙️ icon) to get started. <strong>Colour by</strong>, <strong>Group by</strong> and the extra field lists are optional.
+    <pre id="debug-info"></pre>
   </div>
   <div class="timeline-scroll hidden" id="timeline-scroll">
     <div class="timeline-inner" id="timeline-inner"></div>
@@ -612,7 +626,8 @@ var state = {
   pxPerDay: 10,
   rangeStart: null,      // UTC midnight Date
   rangeEnd: null,
-  mappings: null
+  mappings: null,
+  sample: null           // one raw record, kept for the on-screen debug panel
 };
 
 var ZOOM_PX = { week: 36, month: 10 };
@@ -846,10 +861,29 @@ function groupedTasks() {
   return order.map(function (key) { return { name: key || '(no group)', tasks: groups[key] }; });
 }
 
+function renderDebug() {
+  var el = document.getElementById('debug-info');
+  var m = state.mappings;
+  if (!el || !m || !m.start || !m.end || !state.sample) { if (el) el.textContent = ''; return; }
+  var lines = [
+    'DEBUG (remove this panel once things work):',
+    'mappings.label = ' + JSON.stringify(m.label),
+    'mappings.start = ' + JSON.stringify(m.start),
+    'mappings.end = ' + JSON.stringify(m.end),
+    'mappings.color = ' + JSON.stringify(m.color),
+    'mappings.group = ' + JSON.stringify(m.group),
+    'first record keys: ' + Object.keys(state.sample).join(', '),
+    'record[start] = ' + JSON.stringify(state.sample[m.start]),
+    'record[end] = ' + JSON.stringify(state.sample[m.end])
+  ];
+  el.textContent = lines.join('\n');
+}
+
 function render() {
   if (!state.tasks.length) {
     elEmpty.classList.add('visible');
     elScroll.classList.add('hidden');
+    renderDebug();
     return;
   }
   elEmpty.classList.remove('visible');
@@ -1043,6 +1077,7 @@ grist.onRecords(function (records, mappings) {
     lastRecordsKey = key;
 
     state.mappings = mappings;
+    state.sample = records && records[0] ? records[0] : null;
 
     state.tasks = records.map(function (r) {
       var s = r[mappings.start];
