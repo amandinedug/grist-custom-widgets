@@ -1,111 +1,48 @@
 <!DOCTYPE html>
+<!-- ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+■ NOM DU WIDGET   : FAQ DSFR
+■ VERSION         : 1.1.0
+■ DESCRIPTION     : Widget de foire aux questions conforme DSFR pour Grist.
+■                   Affiche les questions/réponses organisées par catégorie
+■                   avec un système d'accordéon et support du Markdown.
+■ FONCTIONNALITÉS : - Accordéon DSFR par catégorie
+■                   - Support Markdown dans les réponses
+■                   - Header et footer configurables via Grist
+■                   - Filtrage des questions actives/inactives
+■ USAGE RESTREINT : Réservé aux services de l'État français (circulaire n°6411-SG)
+■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■ -->
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FAQ</title>
-    
-    <!-- Grist Plugin API -->
-    <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
-    
-    <!-- DSFR CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr/dsfr.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/utility/utilities.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/utility/icons/icons.min.css">
-
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: "Marianne", arial, sans-serif;
-        }
-        
-        .faq-container {
-            padding: 2rem;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        
-        .faq-category {
-            margin-bottom: 2rem;
-        }
-        
-        .category-title {
-            display: flex;
-            align-items: center;
-            margin-bottom: 1rem;  /* Supprime le gap */
-        }
-
-        #logo-svg-container {
-            max-width: 9.0625rem;
-            display: flex;
-            align-items: center;
-            width:160px;
-            min-width: 100px !important;
-            min-height: 50px !important;
-        }
-
-        /* Désactiver les effets hover sur le header */
-        @media (hover: hover) and (pointer: fine) {
-            .fr-header .fr-enlarge-link:hover,
-            .fr-header .fr-enlarge-link:active {
-                background-color: transparent !important;
-            }
-        }
-        
-        /* Style du contenu Markdown converti */
-        .fr-collapse p {
-            margin-bottom: 0.5rem;
-        }
-        
-        .fr-collapse p:last-child {
-            margin-bottom: 0;
-        }
-        
-        .fr-collapse ul,
-        .fr-collapse ol {
-            margin-top: 0.5rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .fr-collapse strong {
-            font-weight: 700;
-        }
-        
-        .fr-collapse em {
-            font-style: italic;
-        }
-        
-        .fr-collapse code {
-            background-color: var(--background-contrast-grey);
-            color: var(--text-default-error);
-            padding: 0.125rem 0.375rem;
-            border-radius: 0.25rem;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 0.875em;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 3rem;
-            color: var(--text-mention-grey);
-        }
-        
-        .error {
-            text-align: center;
-            padding: 3rem;
-            color: var(--background-flat-error);
-        }
-
-        .fr-footer__body {
-            padding-bottom: 1.5rem !important;
-            margin-bottom: 0rem !important;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FAQ</title>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr/dsfr.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/utility/utilities.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/utility/icons/icons.min.css">
+  <style>
+    body { margin: 0; padding: 0; font-family: "Marianne", arial, sans-serif; }
+    .faq-container { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+    .faq-category { margin-bottom: 2rem; }
+    .category-title { display: flex; align-items: center; margin-bottom: 1rem; }
+    @media (hover: hover) and (pointer: fine) {
+      .fr-header .fr-enlarge-link:hover,
+      .fr-header .fr-enlarge-link:active { background-color: transparent !important; }
+    }
+    .fr-collapse p { margin-bottom: 0.5rem; }
+    .fr-collapse p:last-child { margin-bottom: 0; }
+    .fr-collapse ul, .fr-collapse ol { margin-top: 0.5rem; margin-bottom: 0.5rem; }
+    .fr-collapse strong { font-weight: 700; }
+    .fr-collapse em { font-style: italic; }
+    .fr-collapse code { background-color: var(--background-contrast-grey); color: var(--text-default-error); padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-family: 'Courier New', Courier, monospace; font-size: 0.875em; }
+    #error-banner { display: none; background-color: #ffe9e9; color: #ce0500; font-size: 0.875rem; padding: 1rem 2rem; border-bottom: 2px solid #ce0500; }
+    #loader { display: none; text-align: center; padding: 3rem; color: var(--text-mention-grey); }
+    .fr-footer__body { padding-bottom: 1.5rem !important; margin-bottom: 0 !important; }
+  </style>
 </head>
 <body>
-
-  <!-- Header -->
+  <div id="error-banner" role="alert"></div>
+  <div id="loader"><p class="fr-text--lg">Chargement de la FAQ...</p></div>
   <header role="banner" class="fr-header" id="header-27">
     <div class="fr-header__body">
       <div class="fr-container">
@@ -117,41 +54,22 @@
               </div>
             </div>
             <div class="fr-header__service">
-              <p class="fr-header__service-title"> Foire aux questions </p>
-              <p class="fr-header__service-tagline"> Trouvez rapidement des réponses à vos questions</p>
+              <p class="fr-header__service-title">Foire aux questions</p>
+              <p class="fr-header__service-tagline">Trouvez rapidement des réponses à vos questions</p>
             </div>
           </div>
         </div>
       </div>
     </div>
   </header>
-  
   <div class="faq-container">
-    <!-- Loading state -->
-    <div class="loading" id="loading">
-      <p class="fr-text--lg">Chargement de la FAQ...</p>
-    </div>
-    
-    <!-- Error state -->
-    <div class="error" id="error" style="display: none;">
-      <p class="fr-text--lg">Erreur lors du chargement de la FAQ.</p>
-      <p>Vérifiez que le widget est bien connecté à la table FAQ.</p>
-    </div>
-    
-    <!-- FAQ Content -->
-    <div id="faq-content" style="display: none;">
-      <!-- Categories will be generated dynamically -->
-    </div>
+    <div id="faq-content" style="display: none;"></div>
   </div>
-
-  <!-- Footer -->
   <footer class="fr-footer" role="contentinfo" id="footer" style="display: none;">
     <div class="fr-container">
       <div class="fr-footer__body">
         <div class="fr-footer__brand fr-enlarge-link">
-          <a id="brand-link" title="Retour à l'accueil du site" href="/">
-            <p class="fr-logo" id="ministry-name-footer">Intitulé<br>officiel</p>
-          </a>
+          <a id="brand-link" title="Retour à l'accueil du site" href="/"><p class="fr-logo" id="ministry-name-footer">Intitulé<br>officiel</p></a>
         </div>
         <div class="fr-footer__content">
           <p class="fr-footer__content-desc" id="footer-description"></p>
@@ -159,13 +77,8 @@
       </div>
     </div>
   </footer>
-    
-  <!-- DSFR JS -->
   <script src="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr/dsfr.module.min.js" type="module"></script>
   <script src="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.13.1/dist/dsfr/dsfr.nomodule.min.js" nomodule></script>
-
-  <!-- SCRIPT DU WIDGET -->
-    <script src="script.js"></script>
-
+  <script src="script.js"></script>
 </body>
 </html>

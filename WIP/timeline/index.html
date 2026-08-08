@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timeline</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f7f7f5;
+    --bg-weekend: #fbfbfa;
+    --border: rgba(55,53,47,0.09);
+    --border-strong: rgba(55,53,47,0.16);
+    --text: #37352f;
+    --text-secondary: rgba(55,53,47,0.65);
+    --text-tertiary: rgba(55,53,47,0.45);
+    --accent: #2383e2;
+    --today: #eb5757;
+    --radius: 4px;
+    --radius-lg: 6px;
+    --shadow: 0 1px 2px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    --row-h: 2.75rem;
+    --label-w: 15rem;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font);
+    color: var(--text);
+    background: var(--bg);
+    font-size: 16px;
+  }
+
+  body { padding: 1rem 1.25rem 1.5rem; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .skip-link {
+    position: absolute;
+    top: -100px;
+    left: 0;
+    z-index: 200;
+    background: var(--accent);
+    color: #fff;
+    padding: 0.5rem 0.875rem;
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+  }
+  .skip-link:focus { top: 0.5rem; left: 0.5rem; }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  h1 { font-size: 1.125rem; margin: 0 0 0.125rem; }
+  h2 { font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-secondary); margin: 0 0 0.5rem; font-weight: 600; }
+
+  header.app-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .subtitle { font-size: 0.8125rem; color: var(--text-secondary); margin: 0; }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .btn-group {
+    display: inline-flex;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .btn-group button {
+    font-family: var(--font);
+    font-size: 0.8125rem;
+    padding: 0.375rem 0.75rem;
+    border: none;
+    background: var(--bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-right: 1px solid var(--border-strong);
+  }
+  .btn-group button:last-child { border-right: none; }
+  .btn-group button[aria-pressed="true"] {
+    background: var(--bg-secondary);
+    color: var(--text);
+    font-weight: 600;
+  }
+  .btn-group button:hover { background: var(--bg-secondary); }
+
+  .today-btn {
+    font-family: var(--font);
+    font-size: 0.8125rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .today-btn:hover { background: var(--bg-secondary); }
+
+  .legend {
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+  }
+  .legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+  }
+  .legend .swatch {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  #loader {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    padding: 0.75rem 0;
+  }
+  #loader.hidden { display: none; }
+  .spinner {
+    width: 0.875rem; height: 0.875rem;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #error-banner {
+    display: none;
+    background: #fdf0ef;
+    border: 1px solid #f3c8c3;
+    color: #a13a24;
+    padding: 0.625rem 0.875rem;
+    border-radius: var(--radius);
+    font-size: 0.8125rem;
+    margin-bottom: 0.75rem;
+  }
+  #error-banner.visible { display: block; }
+  #error-banner button {
+    margin-left: 0.75rem;
+    background: none;
+    border: none;
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: inherit;
+    font-family: var(--font);
+  }
+
+  #empty-state {
+    display: none;
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+  }
+  #empty-state.visible { display: block; }
+  #empty-state code {
+    background: var(--bg-secondary);
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    font-size: 0.8125rem;
+  }
+
+  .timeline-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+  .timeline-scroll.hidden { display: none; }
+
+  .timeline-inner {
+    position: relative;
+    min-width: 100%;
+  }
+
+  .ruler-row {
+    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .ruler-label-cell {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    width: var(--label-w);
+    min-width: var(--label-w);
+    flex-shrink: 0;
+    background: var(--bg);
+    border-right: 1px solid var(--border-strong);
+  }
+
+  .ruler-ticks {
+    position: relative;
+    height: 2.25rem;
+  }
+
+  .month-band {
+    position: absolute;
+    top: 0;
+    height: 1rem;
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+    padding-left: 0.375rem;
+    border-left: 1px solid var(--border-strong);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .tick {
+    position: absolute;
+    top: 1rem;
+    bottom: 0;
+    border-left: 1px solid var(--border);
+  }
+  .tick-label {
+    position: absolute;
+    top: 1.1rem;
+    font-size: 0.625rem;
+    color: var(--text-tertiary);
+    padding-left: 0.25rem;
+    white-space: nowrap;
+  }
+
+  .weekend-col {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--bg-weekend);
+  }
+
+  .today-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--today);
+    z-index: 2;
+    pointer-events: none;
+  }
+  .today-line::after {
+    content: "Today";
+    position: absolute;
+    top: -1px;
+    left: 4px;
+    font-size: 0.625rem;
+    color: var(--today);
+    font-weight: 600;
+  }
+
+  .group-row {
+    display: flex;
+    height: 1.75rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-strong);
+  }
+  .group-row .label-cell {
+    background: var(--bg-secondary);
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
+    font-weight: 600;
+    justify-content: center;
+  }
+
+  .task-row {
+    display: flex;
+    height: var(--row-h);
+    border-bottom: 1px solid var(--border);
+  }
+  .task-row:hover { background: var(--bg-secondary); }
+
+  .label-cell {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    width: var(--label-w);
+    min-width: var(--label-w);
+    flex-shrink: 0;
+    background: var(--bg);
+    border-right: 1px solid var(--border-strong);
+    padding: 0.25rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .task-row:hover .label-cell { background: var(--bg-secondary); }
+
+  .label-name {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .label-extra {
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .bar-track {
+    position: relative;
+    flex: 1;
+  }
+
+  .bar {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 1.625rem;
+    border-radius: var(--radius);
+    border: 1px solid;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    min-width: 0.5rem;
+    touch-action: none;
+    overflow: hidden;
+  }
+  .bar:active { cursor: grabbing; }
+  .bar.saving { opacity: 0.55; pointer-events: none; }
+
+  .bar-label {
+    padding: 0 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+  .bar-tag {
+    font-weight: 400;
+    opacity: 0.75;
+    font-size: 0.6875rem;
+  }
+
+  .bar-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 0.5rem;
+    cursor: ew-resize;
+  }
+  .bar-handle.left { left: 0; }
+  .bar-handle.right { right: 0; }
+
+  @media (max-width: 640px) {
+    :root { --label-w: 9rem; }
+  }
+</style>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to timeline</a>
+
+<header class="app-header">
+  <div>
+    <h1>Timeline</h1>
+    <p class="subtitle">Drag a bar to move it, drag its edges to resize.</p>
+  </div>
+  <div class="toolbar">
+    <div class="btn-group" role="group" aria-label="Zoom level">
+      <button type="button" id="zoom-week" aria-pressed="false">Week</button>
+      <button type="button" id="zoom-month" aria-pressed="true">Month</button>
+    </div>
+    <button type="button" class="today-btn" id="scroll-today">Today</button>
+  </div>
+</header>
+
+<ul class="legend" id="legend" aria-label="Colours"></ul>
+
+<div id="loader" role="status" aria-live="polite">
+  <span class="spinner" aria-hidden="true"></span>
+  <span>Loading timeline…</span>
+</div>
+
+<div id="error-banner" role="alert">
+  <span id="error-text">Something went wrong.</span>
+  <button type="button" id="error-dismiss">Dismiss</button>
+</div>
+
+<p id="kbd-instructions" class="sr-only">
+  With a task bar focused: Left and Right arrow keys move the task by one day.
+  Shift plus Left or Right resizes the end date. Alt plus Left or Right resizes the start date.
+</p>
+
+<main id="main">
+  <div id="empty-state">
+    Map <strong>Name</strong>, <strong>Start date</strong> and <strong>End date</strong> in the widget's config panel (the ⚙️ icon) to get started. <strong>Colour by</strong>, <strong>Group by</strong> and the extra field lists are optional.
+  </div>
+  <div class="timeline-scroll hidden" id="timeline-scroll">
+    <div class="timeline-inner" id="timeline-inner"></div>
+  </div>
+</main>
+
+<script>
+'use strict';
+
+/* ---------- optional: fill in to use Grist's real choice colours ---------- */
+/* Leave blank to use the built-in palette instead — everything else works
+   either way. Only needed because looking up a Choice column's colours
+   requires knowing which table it lives on, and Grist doesn't hand the
+   widget its bound table id directly. */
+var CONF = {
+  table: ''
+};
+
+/* ---------- security helpers (per Grist widget security guide) ---------- */
+
+function logSecurity(level, action, details) {
+  var ts = new Date().toISOString();
+  var msg = '[' + ts + '] [' + level + '] ' + action;
+  if (level === 'ERROR') { console.error(msg, details || ''); }
+  else if (level === 'WARN') { console.warn(msg, details || ''); }
+  else { console.log(msg, details || ''); }
+}
+
+function validateNumber(value, min, max, fallback) {
+  var n = parseFloat(value);
+  if (isNaN(n) || !isFinite(n)) return fallback;
+  if (n < min) return min;
+  if (n > max) return max;
+  return n;
+}
+
+var errorBanner = document.getElementById('error-banner');
+var errorText = document.getElementById('error-text');
+function showError(userMessage, realError) {
+  if (realError) logSecurity('ERROR', 'widget-error', realError && realError.message ? realError.message : realError);
+  errorText.textContent = userMessage;
+  errorBanner.classList.add('visible');
+}
+document.getElementById('error-dismiss').addEventListener('click', function () {
+  errorBanner.classList.remove('visible');
+});
+
+function hideLoader() {
+  var loader = document.getElementById('loader');
+  if (loader) {
+    void loader.offsetHeight; // force reflow before removing, avoids Grist iframe repaint bug
+    loader.classList.add('hidden');
+  }
+}
+
+/* ---------- helpers ---------- */
+
+function toRows(t) {
+  var ids = (t && t.id) || [], keys = Object.keys(t || {});
+  return ids.map(function (_, i) {
+    var r = {};
+    keys.forEach(function (k) { r[k] = t[k][i]; });
+    return r;
+  });
+}
+function val(v) { return (v === null || v === undefined) ? '' : String(v); }
+
+function choiceListToArray(v) {
+  if (Array.isArray(v) && v[0] === 'L') return v.slice(1);
+  if (Array.isArray(v)) return v;
+  if (v) return [v];
+  return [];
+}
+function firstChoice(v) {
+  var arr = choiceListToArray(v);
+  return arr.length ? val(arr[0]) : '';
+}
+/* an allowMultiple mapped field arrives as one array per record, each
+   entry the raw cell value for one of the chosen columns */
+function joinExtra(arr) {
+  return (arr || []).map(function (v) {
+    return Array.isArray(v) ? choiceListToArray(v).join(', ') : val(v);
+  }).filter(Boolean);
+}
+
+/* ---------- date helpers (Grist dates = Unix seconds, UTC) ---------- */
+
+var DAY_MS = 86400000;
+
+function secToDate(sec) {
+  if (sec === null || sec === undefined) return null;
+  return new Date(sec * 1000);
+}
+function dateToSec(date) {
+  return Math.floor(date.getTime() / 1000);
+}
+function utcMidnight(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+function addDays(date, n) {
+  return new Date(date.getTime() + n * DAY_MS);
+}
+function daysBetween(a, b) {
+  return Math.round((b.getTime() - a.getTime()) / DAY_MS);
+}
+function fmtShort(date) {
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+function fmtMonthYear(date) {
+  return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
+/* ---------- colour: real Grist choice colours, with a palette fallback ---------- */
+
+var STATUS_PALETTE = [
+  { bg: '#e3e2e0', border: '#c9c8c5', text: '#37352f' },
+  { bg: '#eee0da', border: '#dcc7bb', text: '#5c3b26' },
+  { bg: '#fadec9', border: '#f3c69a', text: '#7a4a1c' },
+  { bg: '#fdecc8', border: '#f8dd9a', text: '#7a5c17' },
+  { bg: '#dbeddb', border: '#b8dbb8', text: '#256029' },
+  { bg: '#d3e5ef', border: '#a9cee3', text: '#1a5580' },
+  { bg: '#e8deee', border: '#d3bfe0', text: '#5f3d7a' },
+  { bg: '#f5e0e9', border: '#eabed4', text: '#7a2f52' },
+  { bg: '#ffe2dd', border: '#f5b7ac', text: '#a13a24' }
+];
+function hashStr(s) {
+  var h = 0;
+  for (var i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; }
+  return h;
+}
+function fallbackColor(value) {
+  if (!value) return STATUS_PALETTE[0];
+  return STATUS_PALETTE[hashStr(String(value)) % STATUS_PALETTE.length];
+}
+
+var choiceColors = {}; // populated from Grist's own column colours, if CONF.table is set
+function loadChoiceColors(colId) {
+  if (!CONF.table || !colId) return Promise.resolve();
+  return Promise.all([
+    grist.docApi.fetchTable('_grist_Tables'),
+    grist.docApi.fetchTable('_grist_Tables_column')
+  ]).then(function (res) {
+    var tbl = toRows(res[0]).find(function (x) {
+      return val(x.tableId).toUpperCase() === CONF.table.toUpperCase();
+    });
+    if (!tbl) { choiceColors = {}; return; }
+    var col = toRows(res[1]).find(function (c) { return c.parentId === tbl.id && c.colId === colId; });
+    if (!col) { choiceColors = {}; return; }
+    try { choiceColors = JSON.parse(col.widgetOptions || '{}').choiceOptions || {}; }
+    catch (e) { choiceColors = {}; }
+  }).catch(function (e) {
+    logSecurity('WARN', 'Load choice colours', e.message);
+    choiceColors = {};
+  });
+}
+function resolveColor(value) {
+  var opt = choiceColors[value];
+  if (opt && (opt.fillColor || opt.textColor)) {
+    return { bg: opt.fillColor || '#e3e2e0', border: 'rgba(0,0,0,0.14)', text: opt.textColor || '#37352f' };
+  }
+  return fallbackColor(value);
+}
+
+/* ---------- state ---------- */
+
+var state = {
+  tasks: [],            // {id, label, start, end, color, group, tableExtra, timelineExtra}
+  zoom: 'month',         // 'week' | 'month'
+  pxPerDay: 10,
+  rangeStart: null,      // UTC midnight Date
+  rangeEnd: null,
+  mappings: null
+};
+
+var ZOOM_PX = { week: 36, month: 10 };
+
+/* ---------- rendering ---------- */
+
+var elInner = document.getElementById('timeline-inner');
+var elScroll = document.getElementById('timeline-scroll');
+var elEmpty = document.getElementById('empty-state');
+var elLegend = document.getElementById('legend');
+
+function computeRange() {
+  var minStart = null, maxEnd = null;
+  state.tasks.forEach(function (t) {
+    if (t.start && (!minStart || t.start < minStart)) minStart = t.start;
+    if (t.end && (!maxEnd || t.end > maxEnd)) maxEnd = t.end;
+  });
+  var today = utcMidnight(new Date());
+  if (!minStart) minStart = today;
+  if (!maxEnd) maxEnd = today;
+  if (minStart > today) minStart = today;
+  if (maxEnd < today) maxEnd = today;
+  state.rangeStart = addDays(utcMidnight(minStart), -7);
+  state.rangeEnd = addDays(utcMidnight(maxEnd), 14);
+}
+
+function xForDate(date) {
+  return daysBetween(state.rangeStart, date) * state.pxPerDay;
+}
+
+function renderLegend() {
+  if (!state.mappings || !state.mappings.color) { elLegend.innerHTML = ''; return; }
+  var seen = {};
+  state.tasks.forEach(function (t) { if (t.color) seen[t.color] = true; });
+  var names = Object.keys(seen).sort();
+  elLegend.innerHTML = '';
+  names.forEach(function (name) {
+    var c = resolveColor(name);
+    var li = document.createElement('li');
+    var swatch = document.createElement('span');
+    swatch.className = 'swatch';
+    swatch.style.background = c.bg;
+    swatch.style.border = '1px solid ' + c.border;
+    swatch.setAttribute('aria-hidden', 'true');
+    var label = document.createElement('span');
+    label.textContent = name;
+    li.appendChild(swatch);
+    li.appendChild(label);
+    elLegend.appendChild(li);
+  });
+}
+
+function renderRuler(totalWidth) {
+  var ruler = document.createElement('div');
+  ruler.className = 'ruler-row';
+
+  var labelCell = document.createElement('div');
+  labelCell.className = 'ruler-label-cell';
+  ruler.appendChild(labelCell);
+
+  var ticks = document.createElement('div');
+  ticks.className = 'ruler-ticks';
+  ticks.style.width = totalWidth + 'px';
+
+  var cursor = new Date(state.rangeStart);
+  while (cursor < state.rangeEnd) {
+    var dow = cursor.getUTCDay();
+    if (dow === 0 || dow === 6) {
+      var band = document.createElement('div');
+      band.className = 'weekend-col';
+      band.style.left = xForDate(cursor) + 'px';
+      band.style.width = state.pxPerDay + 'px';
+      ticks.appendChild(band);
+    }
+    cursor = addDays(cursor, 1);
+  }
+
+  cursor = new Date(state.rangeStart);
+  cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1));
+  while (cursor < state.rangeEnd) {
+    var nextMonth = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    var bandStart = cursor < state.rangeStart ? state.rangeStart : cursor;
+    var left = xForDate(bandStart);
+    var width = xForDate(nextMonth < state.rangeEnd ? nextMonth : state.rangeEnd) - left;
+    var band2 = document.createElement('div');
+    band2.className = 'month-band';
+    band2.style.left = left + 'px';
+    band2.style.width = Math.max(width, 0) + 'px';
+    band2.textContent = fmtMonthYear(cursor);
+    ticks.appendChild(band2);
+    cursor = nextMonth;
+  }
+
+  if (state.zoom === 'week') {
+    cursor = new Date(state.rangeStart);
+    while (cursor < state.rangeEnd) {
+      var tick = document.createElement('div');
+      tick.className = 'tick';
+      tick.style.left = xForDate(cursor) + 'px';
+      ticks.appendChild(tick);
+      var tl = document.createElement('div');
+      tl.className = 'tick-label';
+      tl.style.left = xForDate(cursor) + 'px';
+      tl.textContent = fmtShort(cursor);
+      ticks.appendChild(tl);
+      cursor = addDays(cursor, 7);
+    }
+  } else {
+    cursor = new Date(state.rangeStart);
+    cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1));
+    while (cursor < state.rangeEnd) {
+      var t2 = document.createElement('div');
+      t2.className = 'tick';
+      t2.style.left = xForDate(cursor) + 'px';
+      ticks.appendChild(t2);
+      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    }
+  }
+
+  ruler.appendChild(ticks);
+  return ruler;
+}
+
+function taskAriaLabel(task) {
+  var parts = [task.label || 'Untitled task'];
+  if (task.start && task.end) parts.push(fmtShort(task.start) + ' to ' + fmtShort(task.end));
+  if (task.color) parts.push('coloured ' + task.color);
+  return parts.join(', ');
+}
+
+function renderRow(task, totalWidth) {
+  var row = document.createElement('div');
+  row.className = 'task-row';
+
+  var labelCell = document.createElement('div');
+  labelCell.className = 'label-cell';
+  var n = document.createElement('div');
+  n.className = 'label-name';
+  n.textContent = task.label || '(untitled)';
+  labelCell.appendChild(n);
+  if (task.tableExtra.length) {
+    var extra = document.createElement('div');
+    extra.className = 'label-extra';
+    extra.textContent = task.tableExtra.join(' · ');
+    labelCell.appendChild(extra);
+  }
+  row.appendChild(labelCell);
+
+  var track = document.createElement('div');
+  track.className = 'bar-track';
+  track.style.width = totalWidth + 'px';
+
+  if (task.start && task.end) {
+    var color = resolveColor(task.color);
+    var bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.background = color.bg;
+    bar.style.borderColor = color.border;
+    bar.dataset.id = task.id;
+    bar.setAttribute('role', 'button');
+    bar.setAttribute('tabindex', '0');
+    bar.setAttribute('aria-describedby', 'kbd-instructions');
+    bar.setAttribute('aria-label', taskAriaLabel(task));
+    var titleParts = [task.label, fmtShort(task.start) + ' \u2192 ' + fmtShort(task.end)].concat(task.timelineExtra);
+    bar.title = titleParts.join(' \u2014 ');
+
+    var labelSpan = document.createElement('span');
+    labelSpan.className = 'bar-label';
+    labelSpan.style.color = color.text;
+    var nameSpan = document.createElement('span');
+    nameSpan.textContent = task.label || '';
+    labelSpan.appendChild(nameSpan);
+    task.timelineExtra.forEach(function (extraVal) {
+      var tag = document.createElement('span');
+      tag.className = 'bar-tag';
+      tag.textContent = extraVal;
+      labelSpan.appendChild(tag);
+    });
+    bar.appendChild(labelSpan);
+
+    positionBar(bar, task.start, task.end);
+
+    var leftHandle = document.createElement('div');
+    leftHandle.className = 'bar-handle left';
+    leftHandle.setAttribute('aria-hidden', 'true');
+    var rightHandle = document.createElement('div');
+    rightHandle.className = 'bar-handle right';
+    rightHandle.setAttribute('aria-hidden', 'true');
+    bar.appendChild(leftHandle);
+    bar.appendChild(rightHandle);
+
+    attachDrag(bar, task);
+    attachKeyboard(bar, task);
+
+    track.appendChild(bar);
+  }
+
+  row.appendChild(track);
+  return row;
+}
+
+function renderGroupHeader(name, totalWidth) {
+  var row = document.createElement('div');
+  row.className = 'group-row';
+  var cell = document.createElement('div');
+  cell.className = 'label-cell';
+  cell.textContent = name || '(no group)';
+  row.appendChild(cell);
+  var spacer = document.createElement('div');
+  spacer.style.width = totalWidth + 'px';
+  row.appendChild(spacer);
+  return row;
+}
+
+function positionBar(bar, start, end) {
+  var left = xForDate(start);
+  var width = Math.max(daysBetween(start, end) * state.pxPerDay, 8);
+  bar.style.left = left + 'px';
+  bar.style.width = width + 'px';
+}
+
+function groupedTasks() {
+  if (!state.mappings || !state.mappings.group) return [{ name: null, tasks: state.tasks }];
+  var groups = {}, order = [];
+  state.tasks.forEach(function (t) {
+    var key = t.group || '';
+    if (!(key in groups)) { groups[key] = []; order.push(key); }
+    groups[key].push(t);
+  });
+  order.sort();
+  return order.map(function (key) { return { name: key || '(no group)', tasks: groups[key] }; });
+}
+
+function render() {
+  if (!state.tasks.length) {
+    elEmpty.classList.add('visible');
+    elScroll.classList.add('hidden');
+    return;
+  }
+  elEmpty.classList.remove('visible');
+  elScroll.classList.remove('hidden');
+
+  state.pxPerDay = ZOOM_PX[state.zoom];
+  computeRange();
+  renderLegend();
+
+  var totalWidth = daysBetween(state.rangeStart, state.rangeEnd) * state.pxPerDay;
+
+  elInner.innerHTML = '';
+  elInner.style.width = (totalWidth + 240) + 'px';
+  elInner.appendChild(renderRuler(totalWidth));
+
+  var todayLine = document.createElement('div');
+  todayLine.className = 'today-line';
+  todayLine.style.left = xForDate(utcMidnight(new Date())) + 'px';
+  todayLine.style.top = '2.25rem';
+  elInner.appendChild(todayLine);
+
+  groupedTasks().forEach(function (g) {
+    if (g.name !== null) elInner.appendChild(renderGroupHeader(g.name, totalWidth));
+    g.tasks.forEach(function (task) { elInner.appendChild(renderRow(task, totalWidth)); });
+  });
+}
+
+/* ---------- writing back to Grist ---------- */
+
+function commitDates(taskId, newStart, newEnd, barEl, revertFn) {
+  var fields = {};
+  fields[state.mappings.start] = dateToSec(newStart);
+  fields[state.mappings.end] = dateToSec(newEnd);
+
+  if (barEl) barEl.classList.add('saving');
+
+  grist.selectedTable.update({ id: taskId, fields: fields })
+    .then(function () {
+      if (barEl) barEl.classList.remove('saving');
+    })
+    .catch(function (err) {
+      if (barEl) barEl.classList.remove('saving');
+      if (revertFn) revertFn();
+      showError('Could not save that change, it has been reverted.', err);
+    });
+}
+
+/* ---------- pointer drag ---------- */
+
+function attachDrag(bar, task) {
+  var mode = null;
+  var startPointerX = 0;
+  var origStart, origEnd;
+
+  bar.addEventListener('pointerdown', function (e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    var rect = bar.getBoundingClientRect();
+    var offsetX = e.clientX - rect.left;
+    if (offsetX < 8) mode = 'resize-left';
+    else if (offsetX > rect.width - 8) mode = 'resize-right';
+    else mode = 'move';
+
+    startPointerX = e.clientX;
+    origStart = task.start;
+    origEnd = task.end;
+    bar.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  bar.addEventListener('pointermove', function (e) {
+    if (!mode) return;
+    var deltaPx = e.clientX - startPointerX;
+    var deltaDays = Math.round(deltaPx / state.pxPerDay);
+    var newStart = origStart, newEnd = origEnd;
+
+    if (mode === 'move') {
+      newStart = addDays(origStart, deltaDays);
+      newEnd = addDays(origEnd, deltaDays);
+    } else if (mode === 'resize-left') {
+      newStart = addDays(origStart, deltaDays);
+      if (newStart > origEnd) newStart = origEnd;
+    } else if (mode === 'resize-right') {
+      newEnd = addDays(origEnd, deltaDays);
+      if (newEnd < origStart) newEnd = origStart;
+    }
+    positionBar(bar, newStart, newEnd);
+    task._pendingStart = newStart;
+    task._pendingEnd = newEnd;
+  });
+
+  function finish(e) {
+    if (!mode) return;
+    try { bar.releasePointerCapture(e.pointerId); } catch (err) { /* noop */ }
+    var newStart = task._pendingStart || origStart;
+    var newEnd = task._pendingEnd || origEnd;
+    mode = null;
+    task._pendingStart = null;
+    task._pendingEnd = null;
+
+    if (daysBetween(origStart, newStart) === 0 && daysBetween(origEnd, newEnd) === 0) return;
+
+    task.start = newStart;
+    task.end = newEnd;
+    bar.setAttribute('aria-label', taskAriaLabel(task));
+    commitDates(task.id, newStart, newEnd, bar, function () {
+      task.start = origStart;
+      task.end = origEnd;
+      positionBar(bar, origStart, origEnd);
+      bar.setAttribute('aria-label', taskAriaLabel(task));
+    });
+  }
+
+  bar.addEventListener('pointerup', finish);
+  bar.addEventListener('pointercancel', finish);
+}
+
+/* ---------- keyboard interaction ---------- */
+
+function attachKeyboard(bar, task) {
+  bar.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    var dir = e.key === 'ArrowRight' ? 1 : -1;
+    var origStart = task.start, origEnd = task.end;
+    var newStart = origStart, newEnd = origEnd;
+
+    if (e.shiftKey) {
+      newEnd = addDays(origEnd, dir);
+      if (newEnd < origStart) newEnd = origStart;
+    } else if (e.altKey) {
+      newStart = addDays(origStart, dir);
+      if (newStart > origEnd) newStart = origEnd;
+    } else {
+      newStart = addDays(origStart, dir);
+      newEnd = addDays(origEnd, dir);
+    }
+
+    task.start = newStart;
+    task.end = newEnd;
+    positionBar(bar, newStart, newEnd);
+    bar.setAttribute('aria-label', taskAriaLabel(task));
+    commitDates(task.id, newStart, newEnd, bar, function () {
+      task.start = origStart;
+      task.end = origEnd;
+      positionBar(bar, origStart, origEnd);
+      bar.setAttribute('aria-label', taskAriaLabel(task));
+    });
+  });
+}
+
+/* ---------- zoom + today controls ---------- */
+
+document.getElementById('zoom-week').addEventListener('click', function () { setZoom('week'); });
+document.getElementById('zoom-month').addEventListener('click', function () { setZoom('month'); });
+function setZoom(z) {
+  state.zoom = z;
+  document.getElementById('zoom-week').setAttribute('aria-pressed', String(z === 'week'));
+  document.getElementById('zoom-month').setAttribute('aria-pressed', String(z === 'month'));
+  render();
+}
+
+document.getElementById('scroll-today').addEventListener('click', function () {
+  var todayX = xForDate(utcMidnight(new Date()));
+  elScroll.scrollLeft = validateNumber(todayX - elScroll.clientWidth / 2, 0, elInner.scrollWidth, 0);
+});
+
+/* ---------- Grist wiring ---------- */
+/* Native column mapping — works because this widget is properly hosted
+   (the mapped bulk fetch this relies on isn't supported by the paste-in
+   widget builder's preview bridge, only by a real Custom URL widget). */
+
+grist.ready({
+  requiredAccess: 'full',
+  columns: [
+    { name: 'label', title: 'Name', type: 'Text,Choice', optional: false },
+    { name: 'start', title: 'Start date', type: 'Date,DateTime', optional: false },
+    { name: 'end', title: 'End date', type: 'Date,DateTime', optional: false },
+    { name: 'color', title: 'Colour by', type: 'Choice,ChoiceList', optional: true },
+    { name: 'group', title: 'Group by', type: 'Choice', optional: true },
+    { name: 'tableFields', title: 'Extra fields (list)', type: 'Any', optional: true, allowMultiple: true },
+    { name: 'timelineFields', title: 'Extra fields (on bar)', type: 'Any', optional: true, allowMultiple: true }
+  ]
+});
+
+var lastRecordsKey = null;
+
+grist.onRecords(function (records, mappings) {
+  try {
+    var key = JSON.stringify(records) + JSON.stringify(mappings);
+    if (key === lastRecordsKey) return;
+    lastRecordsKey = key;
+
+    state.mappings = mappings;
+    var mapped = grist.mapColumnNames(records, mappings);
+
+    state.tasks = mapped.map(function (m, i) {
+      var s = m.start, e = m.end;
+      return {
+        id: records[i].id,
+        label: val(m.label),
+        start: s ? utcMidnight(secToDate(s)) : null,
+        end: e ? utcMidnight(secToDate(e)) : null,
+        color: firstChoice(m.color),
+        group: mappings.group ? val(m.group) : '',
+        tableExtra: mappings.tableFields ? joinExtra(m.tableFields) : [],
+        timelineExtra: mappings.timelineFields ? joinExtra(m.timelineFields) : []
+      };
+    }).filter(function (t) { return t.start && t.end; });
+
+    loadChoiceColors(mappings.color).then(function () {
+      hideLoader();
+      render();
+    });
+  } catch (err) {
+    hideLoader();
+    showError('Could not read the mapped data.', err);
+  }
+});
+</script>
+</body>
+</html>
