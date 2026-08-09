@@ -261,7 +261,15 @@
     font-size: 0.75rem;
     color: var(--text-tertiary);
     font-weight: 400;
+    display: flex;
+    align-items: center;
   }
+  .colhead-row {
+    display: flex;
+    height: 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .colhead-row .sticky-col.header { border-right: 1px solid var(--border-soft); }
   .sticky-col.name {
     font-size: 0.8125rem;
     color: var(--text);
@@ -348,7 +356,11 @@
     display: flex;
     height: 2.75rem;
     background: var(--bg);
-    border-bottom: 1px solid var(--border);
+  }
+  .gap-row {
+    display: flex;
+    height: 1.125rem;
+    background: var(--bg);
   }
   .group-row .sticky-col {
     background: var(--bg);
@@ -401,8 +413,6 @@
     transform: translateY(-50%);
     height: 1.625rem;
     border-radius: var(--radius);
-    border-left-width: 3px;
-    border-left-style: solid;
     box-shadow: var(--shadow);
     cursor: grab;
     display: flex;
@@ -468,6 +478,25 @@
     border-color: var(--accent);
     background: var(--bg);
     outline: none;
+  }
+
+  .cell-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 4px;
+    padding: 0.125rem 0.5rem;
+    cursor: pointer;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cell-badge.empty {
+    background: transparent;
+    color: var(--text-muted);
+    padding-left: 0.125rem;
   }
 
   .modal-overlay {
@@ -949,6 +978,71 @@ function stickyWidth() {
   if (state.mappings && state.mappings.group) w = Math.max(w, GROUP_LABEL_W);
   return w;
 }
+function headerIcon(type) {
+  var svgNS = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('width', '14');
+  svg.setAttribute('height', '14');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'var(--text-muted)');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.flexShrink = '0';
+  var paths;
+  if (type === 'Choice' || type === 'ChoiceList') paths = ['M12 3a9 9 0 100 18 9 9 0 000-18z', 'M8.5 12l2.5 2.5 4.5-5'];
+  else if (type.indexOf('Date') === 0) paths = ['M5 4h14v16H5z', 'M5 9h14', 'M9 2v4', 'M15 2v4'];
+  else if (type === 'Numeric' || type === 'Int') paths = ['M4 9h16', 'M4 15h16', 'M9 4l-2 16', 'M17 4l-2 16'];
+  else if (type === 'Bool') paths = ['M4 6h16v12H4z', 'M8 12l3 3 5-6'];
+  else paths = ['M5 6h14', 'M12 6v13']; // text: a T
+  paths.forEach(function (d) {
+    var p = document.createElementNS(svgNS, 'path');
+    p.setAttribute('d', d);
+    svg.appendChild(p);
+  });
+  return svg;
+}
+
+/* renders one list-column cell: a coloured, click-to-edit badge for Choice
+   columns; the plain typed input for everything else */
+function buildCell(colId, rawValue, taskId) {
+  var meta = columnMeta[colId] || { type: 'Text' };
+  if ((meta.type === 'Choice' || meta.type === 'ChoiceList') && taskId) {
+    var value = firstChoice(rawValue);
+    var badge = document.createElement('span');
+    if (value) {
+      var c = resolveColor(value);
+      badge.className = 'cell-badge';
+      badge.style.background = c.bg;
+      badge.style.color = c.text;
+      badge.textContent = value;
+    } else {
+      badge.className = 'cell-badge empty';
+      badge.textContent = '\u2014';
+    }
+    badge.setAttribute('role', 'button');
+    badge.setAttribute('tabindex', '0');
+    var swap = function () {
+      var input = buildFieldInput(colId, rawValue);
+      var sel = input.querySelector('select');
+      wireFieldSave(sel, taskId, colId);
+      sel.addEventListener('blur', function () {
+        // re-render happens on the Grist writeback; nothing to do here
+      });
+      badge.replaceWith(input);
+      if (sel) sel.focus();
+    };
+    badge.addEventListener('click', swap);
+    badge.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); swap(); } });
+    return badge;
+  }
+  var input = buildFieldInput(colId, rawValue);
+  wireFieldSave(input.querySelector('input, select'), taskId, colId);
+  return input;
+}
+
 function buildStickyGroup(extraValues, isHeader, taskId) {
   var group = document.createElement('div');
   group.className = 'sticky-group';
@@ -959,12 +1053,15 @@ function buildStickyGroup(extraValues, isHeader, taskId) {
     cell.className = 'sticky-col extra' + (isHeader ? ' header' : '');
     cell.style.width = EXTRA_COL_W + 'px';
     if (isHeader) {
-      cell.textContent = columnLabels[colId] || colId;
+      var meta = columnMeta[colId] || { type: 'Text' };
+      cell.appendChild(headerIcon(meta.type));
+      var lbl = document.createElement('span');
+      lbl.style.marginLeft = '0.375rem';
+      lbl.textContent = columnLabels[colId] || colId;
+      cell.appendChild(lbl);
     } else if (taskId) {
       var rawValue = extraValues ? extraValues[i] : undefined;
-      var input = buildFieldInput(colId, rawValue);
-      wireFieldSave(input.querySelector('input, select'), taskId, colId);
-      cell.appendChild(input);
+      cell.appendChild(buildCell(colId, rawValue, taskId));
     } else {
       cell.textContent = extraValues && extraValues[i] !== undefined ? cellDisplay(extraValues[i]) : '';
     }
@@ -977,7 +1074,11 @@ function buildStickyGroup(extraValues, isHeader, taskId) {
 function renderRuler(totalWidth) {
   var ruler = document.createElement('div');
   ruler.className = 'ruler-row';
-  ruler.appendChild(buildStickyGroup(null, true));
+
+  var spacer = document.createElement('div');
+  spacer.className = 'sticky-group';
+  spacer.style.width = stickyWidth() + 'px';
+  ruler.appendChild(spacer);
 
   var ticks = document.createElement('div');
   ticks.className = 'ruler-ticks';
@@ -1088,7 +1189,6 @@ function renderRow(task, totalWidth) {
     var bar = document.createElement('div');
     bar.className = 'bar';
     bar.style.background = color.bg;
-    bar.style.borderLeftColor = color.solid;
     bar.dataset.id = task.id;
     bar.setAttribute('role', 'button');
     bar.setAttribute('tabindex', '0');
@@ -1177,6 +1277,29 @@ function renderGroupHeader(name, count, totalWidth) {
   return row;
 }
 
+function renderColumnHeader(totalWidth) {
+  var row = document.createElement('div');
+  row.className = 'colhead-row';
+  row.appendChild(buildStickyGroup(null, true));
+  var spacer = document.createElement('div');
+  spacer.style.width = totalWidth + 'px';
+  row.appendChild(spacer);
+  return row;
+}
+
+function renderGap(totalWidth) {
+  var row = document.createElement('div');
+  row.className = 'gap-row';
+  var left = document.createElement('div');
+  left.className = 'sticky-group';
+  left.style.width = stickyWidth() + 'px';
+  row.appendChild(left);
+  var spacer = document.createElement('div');
+  spacer.style.width = totalWidth + 'px';
+  row.appendChild(spacer);
+  return row;
+}
+
 function positionBar(bar, start, end) {
   var left = xForDate(start);
   var width = Math.max(daysBetween(start, end) * state.pxPerDay, 8);
@@ -1245,10 +1368,15 @@ function render() {
   todayBadge.textContent = 'Today';
   elInner.appendChild(todayBadge);
 
-  groupedTasks().forEach(function (g) {
+  var groups = groupedTasks();
+  groups.forEach(function (g, gi) {
     if (g.name !== null) {
+      if (gi > 0) elInner.appendChild(renderGap(totalWidth));
       elInner.appendChild(renderGroupHeader(g.name, g.tasks.length, totalWidth));
       if (state.collapsed[g.name]) return;
+      if (extraCols().length) elInner.appendChild(renderColumnHeader(totalWidth));
+    } else if (extraCols().length) {
+      elInner.appendChild(renderColumnHeader(totalWidth));
     }
     g.tasks.forEach(function (task) { elInner.appendChild(renderRow(task, totalWidth)); });
   });
