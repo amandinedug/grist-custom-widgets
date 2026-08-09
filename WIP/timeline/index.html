@@ -392,10 +392,8 @@
     align-items: center;
     gap: 0.375rem;
   }
-  .bar-tag {
-    font-weight: 400;
-    opacity: 0.75;
-    font-size: 0.6875rem;
+  .bar-tag-sep {
+    opacity: 0.5;
   }
 
   .bar-handle {
@@ -407,6 +405,94 @@
   }
   .bar-handle.left { left: 0; }
   .bar-handle.right { right: 0; }
+
+  .field-input-wrap { width: 100%; }
+  .field-input-wrap input,
+  .field-input-wrap select {
+    width: 100%;
+    font-family: var(--font);
+    font-size: 0.75rem;
+    color: inherit;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 0.2rem 0.3rem;
+  }
+  .field-input-wrap input[type="checkbox"] { width: auto; }
+  .field-input-wrap input:hover,
+  .field-input-wrap select:hover { border-color: var(--border-strong); }
+  .field-input-wrap input:focus,
+  .field-input-wrap select:focus {
+    border-color: var(--accent);
+    background: var(--bg);
+    outline: none;
+  }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 15, 15, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 1rem;
+  }
+  .modal-overlay[hidden] { display: none; }
+  .modal {
+    background: var(--bg);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    width: 100%;
+    max-width: 26rem;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+  }
+  .modal-header h2 { font-size: 1rem; margin: 0; }
+  .modal-close {
+    border: none;
+    background: none;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 0.25rem;
+    border-radius: var(--radius);
+  }
+  .modal-close:hover { background: var(--bg-secondary); }
+  .modal-body { padding: 1rem 1.25rem 1.25rem; display: flex; flex-direction: column; gap: 0.875rem; }
+  .modal-field label {
+    display: block;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+  }
+  .modal-field input,
+  .modal-field select {
+    width: 100%;
+    font-family: var(--font);
+    font-size: 0.875rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text);
+  }
+  .modal-field input[type="checkbox"] { width: auto; }
+  .modal-empty { font-size: 0.8125rem; color: var(--text-secondary); margin: 0; }
 
   @media (max-width: 640px) {
     .sticky-col.name { width: 8rem !important; }
@@ -443,9 +529,19 @@
 </div>
 
 <p id="kbd-instructions" class="sr-only">
-  With a task bar focused: Left and Right arrow keys move the task by one day.
+  With a task bar focused: Enter or Space opens its details. Left and Right arrow keys move the task by one day.
   Shift plus Left or Right resizes the end date. Alt plus Left or Right resizes the start date.
 </p>
+
+<div class="modal-overlay" id="task-modal" role="dialog" aria-modal="true" aria-labelledby="task-modal-title" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="task-modal-title"></h2>
+      <button type="button" class="modal-close" id="task-modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="task-modal-body"></div>
+  </div>
+</div>
 
 <main id="main">
   <div id="empty-state">
@@ -596,6 +692,7 @@ function fallbackColor(value) {
 
 var choiceColors = {}; // populated from Grist's own column colours
 var columnLabels = {}; // colId -> display label, for the extra-field table headers
+var columnMeta = {};   // colId -> {type, choices}, for building the right input widget per field
 
 function loadSchema(mappings) {
   if (!mappings) return Promise.resolve();
@@ -603,7 +700,15 @@ function loadSchema(mappings) {
     var cols = toRows(table);
 
     columnLabels = {};
-    cols.forEach(function (c) { if (!(c.colId in columnLabels)) columnLabels[c.colId] = c.label || c.colId; });
+    columnMeta = {};
+    cols.forEach(function (c) {
+      if (!(c.colId in columnLabels)) columnLabels[c.colId] = c.label || c.colId;
+      if (!(c.colId in columnMeta)) {
+        var opts = {};
+        try { opts = JSON.parse(c.widgetOptions || '{}'); } catch (e) { /* not JSON, ignore */ }
+        columnMeta[c.colId] = { type: val(c.type), choices: opts.choices || [] };
+      }
+    });
 
     choiceColors = {};
     if (!mappings.color) return;
@@ -634,6 +739,88 @@ function resolveColor(value) {
     return { bg: opt.fillColor || '#e3e2e0', border: 'rgba(0,0,0,0.14)', text: opt.textColor || '#37352f' };
   }
   return fallbackColor(value);
+}
+
+/* ---------- editable field widgets ---------- */
+/* Builds the right kind of input for a column's type: a <select> for
+   Choice, a date picker for Date/DateTime, a checkbox for Bool, a number
+   field for Numeric/Int, plain text otherwise (including ChoiceList,
+   which isn't safely editable as a single value here). */
+
+function buildFieldInput(colId, rawValue) {
+  var meta = columnMeta[colId] || { type: 'Text', choices: [] };
+  var wrap = document.createElement('div');
+  wrap.className = 'field-input-wrap';
+  var input;
+
+  if (meta.type === 'Choice') {
+    input = document.createElement('select');
+    var blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '\u2014';
+    input.appendChild(blank);
+    meta.choices.forEach(function (c) {
+      var opt = document.createElement('option');
+      opt.value = c;
+      opt.textContent = c;
+      if (c === rawValue) opt.selected = true;
+      input.appendChild(opt);
+    });
+  } else if (meta.type.indexOf('Date') === 0) {
+    input = document.createElement('input');
+    input.type = 'date';
+    var d = secToDate(rawValue);
+    if (d) input.value = d.toISOString().slice(0, 10);
+  } else if (meta.type === 'Bool') {
+    input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = !!rawValue;
+  } else if (meta.type === 'Numeric' || meta.type === 'Int') {
+    input = document.createElement('input');
+    input.type = 'number';
+    input.value = (rawValue === null || rawValue === undefined) ? '' : rawValue;
+  } else {
+    input = document.createElement('input');
+    input.type = 'text';
+    input.value = cellDisplay(rawValue);
+  }
+
+  input.setAttribute('autocomplete', 'off');
+  input.dataset.colId = colId;
+  input.dataset.type = meta.type;
+  wrap.appendChild(input);
+  return wrap;
+}
+
+function readFieldInput(input) {
+  var type = input.dataset.type || 'Text';
+  if (type === 'Bool') return input.checked;
+  if (type.indexOf('Date') === 0) {
+    if (!input.value) return null;
+    var parts = input.value.split('-').map(Number);
+    return dateToSec(new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])));
+  }
+  if (type === 'Numeric' || type === 'Int') {
+    return input.value === '' ? null : Number(input.value);
+  }
+  return input.value;
+}
+
+function wireFieldSave(input, taskId, colId) {
+  if (!input) return;
+  var commit = function () {
+    var fields = {};
+    fields[colId] = readFieldInput(input);
+    grist.selectedTable.update({ id: taskId, fields: fields }).catch(function (err) {
+      showError('Could not save that field.', err);
+    });
+  };
+  if (input.tagName === 'SELECT' || input.type === 'checkbox') {
+    input.addEventListener('change', commit);
+  } else {
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') input.blur(); });
+  }
 }
 
 /* ---------- state ---------- */
@@ -694,7 +881,7 @@ function extraCols() {
 function stickyWidth() {
   return NAME_COL_W + extraCols().length * EXTRA_COL_W;
 }
-function buildStickyGroup(nameText, extraValues, isHeader) {
+function buildStickyGroup(nameText, extraValues, isHeader, taskId) {
   var group = document.createElement('div');
   group.className = 'sticky-group';
   group.style.width = stickyWidth() + 'px';
@@ -709,7 +896,16 @@ function buildStickyGroup(nameText, extraValues, isHeader) {
     var cell = document.createElement('div');
     cell.className = 'sticky-col extra' + (isHeader ? ' header' : '');
     cell.style.width = EXTRA_COL_W + 'px';
-    cell.textContent = isHeader ? (columnLabels[colId] || colId) : ((extraValues && extraValues[i]) || '');
+    if (isHeader) {
+      cell.textContent = columnLabels[colId] || colId;
+    } else if (taskId) {
+      var rawValue = extraValues ? extraValues[i] : undefined;
+      var input = buildFieldInput(colId, rawValue);
+      wireFieldSave(input.querySelector('input, select'), taskId, colId);
+      cell.appendChild(input);
+    } else {
+      cell.textContent = extraValues && extraValues[i] !== undefined ? cellDisplay(extraValues[i]) : '';
+    }
     group.appendChild(cell);
   });
 
@@ -809,7 +1005,7 @@ function taskAriaLabel(task) {
 function renderRow(task, totalWidth) {
   var row = document.createElement('div');
   row.className = 'task-row';
-  row.appendChild(buildStickyGroup(task.label || '(untitled)', task.tableExtra, false));
+  row.appendChild(buildStickyGroup(task.label || '(untitled)', task.tableExtra, false, task.id));
 
   var track = document.createElement('div');
   track.className = 'bar-track';
@@ -832,12 +1028,15 @@ function renderRow(task, totalWidth) {
     var labelSpan = document.createElement('span');
     labelSpan.className = 'bar-label';
     labelSpan.style.color = color.text;
-    var nameSpan = document.createElement('span');
-    nameSpan.textContent = task.label || '';
-    labelSpan.appendChild(nameSpan);
-    task.timelineExtra.forEach(function (extraVal) {
+    task.timelineExtra.forEach(function (extraVal, i) {
+      if (i > 0) {
+        var sep = document.createElement('span');
+        sep.className = 'bar-tag-sep';
+        sep.setAttribute('aria-hidden', 'true');
+        sep.textContent = ' \u00b7 ';
+        labelSpan.appendChild(sep);
+      }
       var tag = document.createElement('span');
-      tag.className = 'bar-tag';
       tag.textContent = extraVal;
       labelSpan.appendChild(tag);
     });
@@ -1051,7 +1250,10 @@ function attachDrag(bar, task) {
     task._pendingStart = null;
     task._pendingEnd = null;
 
-    if (daysBetween(origStart, newStart) === 0 && daysBetween(origEnd, newEnd) === 0) return;
+    if (daysBetween(origStart, newStart) === 0 && daysBetween(origEnd, newEnd) === 0) {
+      openTaskModal(task);
+      return;
+    }
 
     task.start = newStart;
     task.end = newEnd;
@@ -1072,6 +1274,11 @@ function attachDrag(bar, task) {
 
 function attachKeyboard(bar, task) {
   bar.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openTaskModal(task);
+      return;
+    }
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     e.preventDefault();
     var dir = e.key === 'ArrowRight' ? 1 : -1;
@@ -1101,6 +1308,70 @@ function attachKeyboard(bar, task) {
     });
   });
 }
+
+/* ---------- task detail modal ---------- */
+
+var taskModal = document.getElementById('task-modal');
+var taskModalTitle = document.getElementById('task-modal-title');
+var taskModalBody = document.getElementById('task-modal-body');
+var taskModalClose = document.getElementById('task-modal-close');
+var modalTriggerEl = null;
+
+function openTaskModal(task) {
+  modalTriggerEl = document.activeElement;
+  taskModalTitle.textContent = task.label || '(untitled)';
+  taskModalBody.innerHTML = '';
+
+  var editCols = (state.mappings && state.mappings.editFields) || [];
+  if (!editCols.length) {
+    var p = document.createElement('p');
+    p.className = 'modal-empty';
+    p.textContent = 'No editable fields configured yet \u2014 pick some under "Editable fields (popup)" in the config panel.';
+    taskModalBody.appendChild(p);
+  } else {
+    editCols.forEach(function (colId) {
+      var field = document.createElement('div');
+      field.className = 'modal-field';
+      var fieldId = 'modal-field-' + colId;
+      var label = document.createElement('label');
+      label.setAttribute('for', fieldId);
+      label.textContent = columnLabels[colId] || colId;
+      field.appendChild(label);
+
+      var rawValue = task.raw ? task.raw[colId] : undefined;
+      var inputWrap = buildFieldInput(colId, rawValue);
+      var input = inputWrap.querySelector('input, select');
+      input.id = fieldId;
+      wireFieldSave(input, task.id, colId);
+      field.appendChild(inputWrap);
+      taskModalBody.appendChild(field);
+    });
+  }
+
+  taskModal.hidden = false;
+  var firstField = taskModalBody.querySelector('input, select');
+  (firstField || taskModalClose).focus();
+  document.addEventListener('keydown', onModalKeydown);
+}
+
+function closeTaskModal() {
+  taskModal.hidden = true;
+  document.removeEventListener('keydown', onModalKeydown);
+  if (modalTriggerEl && typeof modalTriggerEl.focus === 'function') modalTriggerEl.focus();
+}
+
+function onModalKeydown(e) {
+  if (e.key === 'Escape') { closeTaskModal(); return; }
+  if (e.key !== 'Tab') return;
+  var focusables = taskModal.querySelectorAll('input, select, button');
+  if (!focusables.length) return;
+  var first = focusables[0], last = focusables[focusables.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+
+taskModalClose.addEventListener('click', closeTaskModal);
+taskModal.addEventListener('click', function (e) { if (e.target === taskModal) closeTaskModal(); });
 
 /* ---------- zoom + today controls ---------- */
 
@@ -1139,7 +1410,8 @@ grist.ready({
     { name: 'color', title: 'Colour by', type: 'Choice,ChoiceList', optional: true },
     { name: 'group', title: 'Group by', type: 'Choice', optional: true },
     { name: 'tableFields', title: 'Extra fields (list)', type: 'Any', optional: true, allowMultiple: true },
-    { name: 'timelineFields', title: 'Extra fields (on bar)', type: 'Any', optional: true, allowMultiple: true }
+    { name: 'timelineFields', title: 'Extra fields (on bar)', type: 'Any', optional: true, allowMultiple: true },
+    { name: 'editFields', title: 'Editable fields (popup)', type: 'Any', optional: true, allowMultiple: true }
   ]
 });
 
@@ -1164,8 +1436,9 @@ grist.onRecords(function (records, mappings) {
         end: endDate ? utcMidnight(endDate) : null,
         color: firstChoice(r[mappings.color]),
         group: mappings.group ? val(r[mappings.group]) : '',
-        tableExtra: (mappings.tableFields || []).map(function (colId) { return cellDisplay(r[colId]); }),
-        timelineExtra: (mappings.timelineFields || []).map(function (colId) { return cellDisplay(r[colId]); }).filter(Boolean)
+        tableExtra: (mappings.tableFields || []).map(function (colId) { return r[colId]; }),
+        timelineExtra: (mappings.timelineFields || []).map(function (colId) { return cellDisplay(r[colId]); }).filter(Boolean),
+        raw: r
       };
     }).filter(function (t) { return t.start && t.end; });
   } catch (err) {
