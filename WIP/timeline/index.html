@@ -547,7 +547,8 @@
   }
   .modal-close:hover { background: var(--bg-secondary); }
   .modal-divider { height: 1px; background: var(--border); margin: 0.875rem 0; }
-  .modal-body { display: flex; flex-direction: column; gap: 0.875rem; }
+  .modal-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem; }
+  .modal-field.full { grid-column: 1 / -1; }
   .modal-field label {
     display: block;
     font-size: 0.75rem;
@@ -841,6 +842,14 @@ function resolveColor(value) {
    Choice, a date picker for Date/DateTime, a checkbox for Bool, a number
    field for Numeric/Int, plain text otherwise (including ChoiceList,
    which isn't safely editable as a single value here). */
+
+/* short field types get a half-width cell in the popup grid; everything
+   else (text, etc.) spans the full row */
+function isShortField(type) {
+  return type.indexOf('Date') === 0 ||
+    type === 'Choice' || type === 'ChoiceList' ||
+    type === 'Numeric' || type === 'Int' || type === 'Bool';
+}
 
 function buildFieldInput(colId, rawValue) {
   var meta = columnMeta[colId] || { type: 'Text', choices: [] };
@@ -1310,10 +1319,18 @@ function positionBar(bar, start, end) {
 function groupedTasks() {
   if (!state.mappings || !state.mappings.group) return [{ name: null, tasks: state.tasks }];
   var groups = {}, order = [];
-  state.tasks.forEach(function (t) {
-    var key = t.group || '';
+  function push(key, task) {
     if (!(key in groups)) { groups[key] = []; order.push(key); }
-    groups[key].push(t);
+    groups[key].push(task);
+  }
+  state.tasks.forEach(function (t) {
+    if (t.groups.length) {
+      // a task with several group values appears once under each — same
+      // record, so editing/dragging any of its bars updates them all
+      t.groups.forEach(function (g) { push(g, t); });
+    } else {
+      push('', t); // no group value → "(no group)" bucket
+    }
   });
   order.sort();
   return order.map(function (key) { return { name: key || '(no group)', tasks: groups[key] }; });
@@ -1540,7 +1557,8 @@ function openTaskModal(task) {
   } else {
     editCols.forEach(function (colId) {
       var field = document.createElement('div');
-      field.className = 'modal-field';
+      var meta = columnMeta[colId] || { type: 'Text' };
+      field.className = 'modal-field' + (isShortField(meta.type) ? '' : ' full');
       var fieldId = 'modal-field-' + colId;
       var label = document.createElement('label');
       label.setAttribute('for', fieldId);
@@ -1616,7 +1634,7 @@ grist.ready({
     { name: 'start', title: 'Start date', type: 'Date,DateTime', optional: false },
     { name: 'end', title: 'End date', type: 'Date,DateTime', optional: false },
     { name: 'color', title: 'Colour by', type: 'Choice,ChoiceList', optional: true },
-    { name: 'group', title: 'Group by', type: 'Choice', optional: true },
+    { name: 'group', title: 'Group by', type: 'Choice,ChoiceList', optional: true },
     { name: 'tableFields', title: 'Extra fields (list)', type: 'Any', optional: true, allowMultiple: true },
     { name: 'timelineFields', title: 'Extra fields (on bar)', type: 'Any', optional: true, allowMultiple: true },
     { name: 'editFields', title: 'Editable fields (popup)', type: 'Any', optional: true, allowMultiple: true }
@@ -1642,7 +1660,7 @@ grist.onRecords(function (records, mappings) {
         start: startDate ? utcMidnight(startDate) : null,
         end: endDate ? utcMidnight(endDate) : null,
         color: firstChoice(r[mappings.color]),
-        group: mappings.group ? val(r[mappings.group]) : '',
+        groups: mappings.group ? choiceListToArray(r[mappings.group]).map(val).filter(Boolean) : [],
         tableExtra: (mappings.tableFields || []).map(function (colId) { return r[colId]; }),
         timelineExtra: (mappings.timelineFields || []).map(function (colId) { return cellDisplay(r[colId]); }).filter(Boolean),
         raw: r
