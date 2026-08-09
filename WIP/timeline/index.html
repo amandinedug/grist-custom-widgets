@@ -22,7 +22,6 @@
     --shadow: 0 1px 2px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04);
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
     --row-h: 2.75rem;
-    --label-w: 15rem;
   }
 
   * { box-sizing: border-box; }
@@ -123,28 +122,6 @@
   }
   .today-btn:hover { background: var(--bg-secondary); }
 
-  .legend {
-    margin: 0 0 1rem;
-    padding: 0;
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1rem;
-  }
-  .legend li {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    font-size: 0.8125rem;
-    color: var(--text-secondary);
-  }
-  .legend .swatch {
-    width: 0.625rem;
-    height: 0.625rem;
-    border-radius: 2px;
-    flex-shrink: 0;
-  }
-
   #loader {
     display: flex;
     align-items: center;
@@ -238,16 +215,48 @@
     border-bottom: 1px solid var(--border-strong);
   }
 
-  .ruler-label-cell {
+  .sticky-group {
     position: sticky;
     left: 0;
-    z-index: 4;
-    width: var(--label-w);
-    min-width: var(--label-w);
+    z-index: 1;
+    display: flex;
     flex-shrink: 0;
     background: var(--bg);
-    border-right: 1px solid var(--border-strong);
   }
+  .ruler-row .sticky-group { z-index: 4; }
+
+  .sticky-col {
+    flex-shrink: 0;
+    background: inherit;
+    border-right: 1px solid var(--border-strong);
+    padding: 0.25rem 0.75rem;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+  .sticky-col.header {
+    height: 100%;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--text-secondary);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-strong);
+  }
+  .sticky-col.name {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .sticky-col.extra {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .task-row:hover .sticky-group,
+  .task-row:hover .sticky-col { background: var(--bg-secondary); }
 
   .ruler-ticks {
     position: relative;
@@ -313,14 +322,14 @@
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-strong);
   }
-  .group-row .label-cell {
+  .group-row .sticky-col {
     background: var(--bg-secondary);
     font-size: 0.6875rem;
     text-transform: uppercase;
     letter-spacing: 0.03em;
     color: var(--text-secondary);
     font-weight: 600;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .task-row {
@@ -329,38 +338,6 @@
     border-bottom: 1px solid var(--border);
   }
   .task-row:hover { background: var(--bg-secondary); }
-
-  .label-cell {
-    position: sticky;
-    left: 0;
-    z-index: 1;
-    width: var(--label-w);
-    min-width: var(--label-w);
-    flex-shrink: 0;
-    background: var(--bg);
-    border-right: 1px solid var(--border-strong);
-    padding: 0.25rem 0.75rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    overflow: hidden;
-  }
-  .task-row:hover .label-cell { background: var(--bg-secondary); }
-
-  .label-name {
-    font-size: 0.8125rem;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .label-extra {
-    font-size: 0.6875rem;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
 
   .bar-track {
     position: relative;
@@ -413,7 +390,7 @@
   .bar-handle.right { right: 0; }
 
   @media (max-width: 640px) {
-    :root { --label-w: 9rem; }
+    .sticky-col.name { width: 8rem !important; }
   }
 </style>
 </head>
@@ -433,8 +410,6 @@
     <button type="button" class="today-btn" id="scroll-today">Today</button>
   </div>
 </header>
-
-<ul class="legend" id="legend" aria-label="Colours"></ul>
 
 <div id="loader" role="status" aria-live="polite">
   <span class="spinner" aria-hidden="true"></span>
@@ -464,14 +439,9 @@
 <script>
 'use strict';
 
-/* ---------- optional: fill in to use Grist's real choice colours ---------- */
-/* Leave blank to use the built-in palette instead — everything else works
-   either way. Only needed because looking up a Choice column's colours
-   requires knowing which table it lives on, and Grist doesn't hand the
-   widget its bound table id directly. */
-var CONF = {
-  table: ''
-};
+/* No manual configuration needed — the table is auto-detected by matching
+   which table contains all the mapped columns, used to pull real Grist
+   choice colours and column labels for the extra-field table headers. */
 
 /* ---------- security helpers (per Grist widget security guide) ---------- */
 
@@ -532,12 +502,9 @@ function firstChoice(v) {
   var arr = choiceListToArray(v);
   return arr.length ? val(arr[0]) : '';
 }
-/* an allowMultiple mapped field arrives as one array per record, each
-   entry the raw cell value for one of the chosen columns */
-function joinExtra(arr) {
-  return (arr || []).map(function (v) {
-    return Array.isArray(v) ? choiceListToArray(v).join(', ') : val(v);
-  }).filter(Boolean);
+function cellDisplay(v) {
+  if (Array.isArray(v)) return choiceListToArray(v).join(', ');
+  return val(v);
 }
 
 /* ---------- date helpers (Grist dates = Unix seconds, UTC) ---------- */
@@ -594,24 +561,38 @@ function fallbackColor(value) {
   return STATUS_PALETTE[hashStr(String(value)) % STATUS_PALETTE.length];
 }
 
-var choiceColors = {}; // populated from Grist's own column colours, if CONF.table is set
-function loadChoiceColors(colId) {
-  if (!CONF.table || !colId) return Promise.resolve();
-  return Promise.all([
-    grist.docApi.fetchTable('_grist_Tables'),
-    grist.docApi.fetchTable('_grist_Tables_column')
-  ]).then(function (res) {
-    var tbl = toRows(res[0]).find(function (x) {
-      return val(x.tableId).toUpperCase() === CONF.table.toUpperCase();
-    });
-    if (!tbl) { choiceColors = {}; return; }
-    var col = toRows(res[1]).find(function (c) { return c.parentId === tbl.id && c.colId === colId; });
-    if (!col) { choiceColors = {}; return; }
-    try { choiceColors = JSON.parse(col.widgetOptions || '{}').choiceOptions || {}; }
-    catch (e) { choiceColors = {}; }
-  }).catch(function (e) {
-    logSecurity('WARN', 'Load choice colours', e.message);
+var choiceColors = {}; // populated from Grist's own column colours
+var columnLabels = {}; // colId -> display label, for the extra-field table headers
+
+function loadSchema(mappings) {
+  if (!mappings) return Promise.resolve();
+  return grist.docApi.fetchTable('_grist_Tables_column').then(function (table) {
+    var cols = toRows(table);
+
+    columnLabels = {};
+    cols.forEach(function (c) { if (!(c.colId in columnLabels)) columnLabels[c.colId] = c.label || c.colId; });
+
     choiceColors = {};
+    if (!mappings.color) return;
+
+    var byTable = {};
+    cols.forEach(function (c) { (byTable[c.parentId] = byTable[c.parentId] || []).push(c); });
+
+    var matchCols = null;
+    var needed = [mappings.label, mappings.start, mappings.end, mappings.color].filter(Boolean);
+    Object.keys(byTable).forEach(function (tid) {
+      var ids = byTable[tid].map(function (c) { return c.colId; });
+      if (needed.every(function (n) { return ids.indexOf(n) !== -1; })) matchCols = byTable[tid];
+    });
+
+    var colorCol = matchCols && matchCols.filter(function (c) { return c.colId === mappings.color; })[0];
+    if (!colorCol) return;
+    try { choiceColors = JSON.parse(colorCol.widgetOptions || '{}').choiceOptions || {}; }
+    catch (e) { /* not JSON, ignore */ }
+  }).catch(function (e) {
+    logSecurity('WARN', 'Load schema', e.message);
+    choiceColors = {};
+    columnLabels = {};
   });
 }
 function resolveColor(value) {
@@ -631,7 +612,8 @@ var state = {
   rangeStart: null,      // UTC midnight Date
   rangeEnd: null,
   mappings: null,
-  sample: null           // one raw record, kept for the on-screen debug panel
+  sample: null,          // one raw record, kept for the on-screen debug panel
+  scrolledOnce: false
 };
 
 var ZOOM_PX = { week: 36, month: 10 };
@@ -641,7 +623,6 @@ var ZOOM_PX = { week: 36, month: 10 };
 var elInner = document.getElementById('timeline-inner');
 var elScroll = document.getElementById('timeline-scroll');
 var elEmpty = document.getElementById('empty-state');
-var elLegend = document.getElementById('legend');
 
 function computeRange() {
   var minStart = null, maxEnd = null;
@@ -668,35 +649,43 @@ function xForDate(date) {
   return daysBetween(state.rangeStart, date) * state.pxPerDay;
 }
 
-function renderLegend() {
-  if (!state.mappings || !state.mappings.color) { elLegend.innerHTML = ''; return; }
-  var seen = {};
-  state.tasks.forEach(function (t) { if (t.color) seen[t.color] = true; });
-  var names = Object.keys(seen).sort();
-  elLegend.innerHTML = '';
-  names.forEach(function (name) {
-    var c = resolveColor(name);
-    var li = document.createElement('li');
-    var swatch = document.createElement('span');
-    swatch.className = 'swatch';
-    swatch.style.background = c.bg;
-    swatch.style.border = '1px solid ' + c.border;
-    swatch.setAttribute('aria-hidden', 'true');
-    var label = document.createElement('span');
-    label.textContent = name;
-    li.appendChild(swatch);
-    li.appendChild(label);
-    elLegend.appendChild(li);
+/* ---------- sticky column layout (Name + one column per "Extra fields (list)") ---------- */
+
+var NAME_COL_W = 180;
+var EXTRA_COL_W = 130;
+
+function extraCols() {
+  return (state.mappings && state.mappings.tableFields) || [];
+}
+function stickyWidth() {
+  return NAME_COL_W + extraCols().length * EXTRA_COL_W;
+}
+function buildStickyGroup(nameText, extraValues, isHeader) {
+  var group = document.createElement('div');
+  group.className = 'sticky-group';
+  group.style.width = stickyWidth() + 'px';
+
+  var name = document.createElement('div');
+  name.className = 'sticky-col name' + (isHeader ? ' header' : '');
+  name.style.width = NAME_COL_W + 'px';
+  name.textContent = nameText;
+  group.appendChild(name);
+
+  extraCols().forEach(function (colId, i) {
+    var cell = document.createElement('div');
+    cell.className = 'sticky-col extra' + (isHeader ? ' header' : '');
+    cell.style.width = EXTRA_COL_W + 'px';
+    cell.textContent = isHeader ? (columnLabels[colId] || colId) : ((extraValues && extraValues[i]) || '');
+    group.appendChild(cell);
   });
+
+  return group;
 }
 
 function renderRuler(totalWidth) {
   var ruler = document.createElement('div');
   ruler.className = 'ruler-row';
-
-  var labelCell = document.createElement('div');
-  labelCell.className = 'ruler-label-cell';
-  ruler.appendChild(labelCell);
+  ruler.appendChild(buildStickyGroup('Name', null, true));
 
   var ticks = document.createElement('div');
   ticks.className = 'ruler-ticks';
@@ -771,20 +760,7 @@ function taskAriaLabel(task) {
 function renderRow(task, totalWidth) {
   var row = document.createElement('div');
   row.className = 'task-row';
-
-  var labelCell = document.createElement('div');
-  labelCell.className = 'label-cell';
-  var n = document.createElement('div');
-  n.className = 'label-name';
-  n.textContent = task.label || '(untitled)';
-  labelCell.appendChild(n);
-  if (task.tableExtra.length) {
-    var extra = document.createElement('div');
-    extra.className = 'label-extra';
-    extra.textContent = task.tableExtra.join(' · ');
-    labelCell.appendChild(extra);
-  }
-  row.appendChild(labelCell);
+  row.appendChild(buildStickyGroup(task.label || '(untitled)', task.tableExtra, false));
 
   var track = document.createElement('div');
   track.className = 'bar-track';
@@ -842,10 +818,17 @@ function renderRow(task, totalWidth) {
 function renderGroupHeader(name, totalWidth) {
   var row = document.createElement('div');
   row.className = 'group-row';
+
+  var group = document.createElement('div');
+  group.className = 'sticky-group';
+  group.style.width = stickyWidth() + 'px';
   var cell = document.createElement('div');
-  cell.className = 'label-cell';
+  cell.className = 'sticky-col name';
+  cell.style.width = stickyWidth() + 'px';
   cell.textContent = name || '(no group)';
-  row.appendChild(cell);
+  group.appendChild(cell);
+  row.appendChild(group);
+
   var spacer = document.createElement('div');
   spacer.style.width = totalWidth + 'px';
   row.appendChild(spacer);
@@ -901,12 +884,11 @@ function render() {
 
   state.pxPerDay = ZOOM_PX[state.zoom];
   computeRange();
-  renderLegend();
 
   var totalWidth = daysBetween(state.rangeStart, state.rangeEnd) * state.pxPerDay;
 
   elInner.innerHTML = '';
-  elInner.style.width = (totalWidth + 240) + 'px';
+  elInner.style.width = (totalWidth + stickyWidth()) + 'px';
   elInner.appendChild(renderRuler(totalWidth));
 
   var todayLine = document.createElement('div');
@@ -919,6 +901,11 @@ function render() {
     if (g.name !== null) elInner.appendChild(renderGroupHeader(g.name, totalWidth));
     g.tasks.forEach(function (task) { elInner.appendChild(renderRow(task, totalWidth)); });
   });
+
+  if (!state.scrolledOnce) {
+    state.scrolledOnce = true;
+    scrollToToday();
+  }
 }
 
 /* ---------- writing back to Grist ---------- */
@@ -1053,12 +1040,17 @@ function setZoom(z) {
   document.getElementById('zoom-week').setAttribute('aria-pressed', String(z === 'week'));
   document.getElementById('zoom-month').setAttribute('aria-pressed', String(z === 'month'));
   render();
+  scrollToToday();
 }
 
-document.getElementById('scroll-today').addEventListener('click', function () {
-  var todayX = xForDate(utcMidnight(new Date()));
-  elScroll.scrollLeft = validateNumber(todayX - elScroll.clientWidth / 2, 0, elInner.scrollWidth, 0);
-});
+function scrollToToday() {
+  requestAnimationFrame(function () {
+    var todayX = xForDate(utcMidnight(new Date()));
+    var maxScroll = Math.max(elInner.scrollWidth - elScroll.clientWidth, 0);
+    elScroll.scrollLeft = validateNumber(todayX - elScroll.clientWidth / 2, 0, maxScroll, 0);
+  });
+}
+document.getElementById('scroll-today').addEventListener('click', scrollToToday);
 
 /* ---------- Grist wiring ---------- */
 /* Native column mapping — works because this widget is properly hosted
@@ -1099,8 +1091,8 @@ grist.onRecords(function (records, mappings) {
         end: endDate ? utcMidnight(endDate) : null,
         color: firstChoice(r[mappings.color]),
         group: mappings.group ? val(r[mappings.group]) : '',
-        tableExtra: mappings.tableFields ? joinExtra(mappings.tableFields.map(function (colId) { return r[colId]; })) : [],
-        timelineExtra: mappings.timelineFields ? joinExtra(mappings.timelineFields.map(function (colId) { return r[colId]; })) : []
+        tableExtra: (mappings.tableFields || []).map(function (colId) { return cellDisplay(r[colId]); }),
+        timelineExtra: (mappings.timelineFields || []).map(function (colId) { return cellDisplay(r[colId]); }).filter(Boolean)
       };
     }).filter(function (t) { return t.start && t.end; });
   } catch (err) {
@@ -1109,7 +1101,7 @@ grist.onRecords(function (records, mappings) {
     return;
   }
 
-  loadChoiceColors(mappings.color).then(function () {
+  loadSchema(mappings).then(function () {
     try {
       hideLoader();
       render();
