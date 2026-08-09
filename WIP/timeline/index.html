@@ -318,10 +318,12 @@
 
   .group-row {
     display: flex;
-    height: 1.75rem;
+    height: 2rem;
     background: var(--bg-secondary);
+    border-top: 2px solid var(--border-strong);
     border-bottom: 1px solid var(--border-strong);
   }
+  .group-row:first-child { border-top: none; }
   .group-row .sticky-col {
     background: var(--bg-secondary);
     font-size: 0.6875rem;
@@ -330,7 +332,24 @@
     color: var(--text-secondary);
     font-weight: 600;
     justify-content: flex-start;
+    padding: 0;
   }
+  .group-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    width: 100%;
+    height: 100%;
+    padding: 0 0.75rem;
+    border: none;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .group-toggle:hover { text-decoration: underline; }
+  .group-chevron { flex-shrink: 0; font-size: 0.625rem; width: 0.75rem; }
 
   .task-row {
     display: flex;
@@ -404,8 +423,10 @@
   </div>
   <div class="toolbar">
     <div class="btn-group" role="group" aria-label="Zoom level">
-      <button type="button" id="zoom-week" aria-pressed="false">Week</button>
-      <button type="button" id="zoom-month" aria-pressed="true">Month</button>
+      <button type="button" data-zoom="day" aria-pressed="false">Day</button>
+      <button type="button" data-zoom="week" aria-pressed="false">Week</button>
+      <button type="button" data-zoom="month" aria-pressed="true">Month</button>
+      <button type="button" data-zoom="quarter" aria-pressed="false">Quarter</button>
     </div>
     <button type="button" class="today-btn" id="scroll-today">Today</button>
   </div>
@@ -537,6 +558,18 @@ function fmtShort(date) {
 function fmtMonthYear(date) {
   return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
+function startOfMonth(d) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+}
+function addMonths(d, n) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1));
+}
+function startOfQuarter(d) {
+  return new Date(Date.UTC(d.getUTCFullYear(), Math.floor(d.getUTCMonth() / 3) * 3, 1));
+}
+function fmtQuarter(d) {
+  return 'Q' + (Math.floor(d.getUTCMonth() / 3) + 1) + ' ' + d.getUTCFullYear();
+}
 
 /* ---------- colour: real Grist choice colours, with a palette fallback ---------- */
 
@@ -613,10 +646,11 @@ var state = {
   rangeEnd: null,
   mappings: null,
   sample: null,          // one raw record, kept for the on-screen debug panel
-  scrolledOnce: false
+  scrolledOnce: false,
+  collapsed: {}          // group name -> true if collapsed
 };
 
-var ZOOM_PX = { week: 36, month: 10 };
+var ZOOM_PX = { day: 48, week: 36, month: 10, quarter: 3 };
 
 /* ---------- rendering ---------- */
 
@@ -638,10 +672,10 @@ function computeRange() {
   state.rangeStart = addDays(utcMidnight(minStart), -7);
   state.rangeEnd = addDays(utcMidnight(maxEnd), 14);
 
-  var MAX_DAYS = 1500; // ~4 years — a hard ceiling so a bad date can never freeze the tab
+  var MAX_DAYS = 7300; // ~20 years — individual dates are already sanity-checked (1990-2100), so this is just a final backstop
   if (daysBetween(state.rangeStart, state.rangeEnd) > MAX_DAYS) {
     state.rangeEnd = addDays(state.rangeStart, MAX_DAYS);
-    showError('Some dates are outside a sane range and were clamped — check the Start/End column mapping.');
+    showError('The date range is unusually wide (20+ years) and was clamped — check the Start/End column mapping if that looks wrong.');
   }
 }
 
@@ -691,23 +725,24 @@ function renderRuler(totalWidth) {
   ticks.className = 'ruler-ticks';
   ticks.style.width = totalWidth + 'px';
 
-  var cursor = new Date(state.rangeStart);
-  while (cursor < state.rangeEnd) {
-    var dow = cursor.getUTCDay();
-    if (dow === 0 || dow === 6) {
-      var band = document.createElement('div');
-      band.className = 'weekend-col';
-      band.style.left = xForDate(cursor) + 'px';
-      band.style.width = state.pxPerDay + 'px';
-      ticks.appendChild(band);
+  if (state.pxPerDay >= 8) { // weekend shading is just noise once days get too thin to read
+    var cursor = new Date(state.rangeStart);
+    while (cursor < state.rangeEnd) {
+      var dow = cursor.getUTCDay();
+      if (dow === 0 || dow === 6) {
+        var band = document.createElement('div');
+        band.className = 'weekend-col';
+        band.style.left = xForDate(cursor) + 'px';
+        band.style.width = state.pxPerDay + 'px';
+        ticks.appendChild(band);
+      }
+      cursor = addDays(cursor, 1);
     }
-    cursor = addDays(cursor, 1);
   }
 
-  cursor = new Date(state.rangeStart);
-  cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1));
+  var cursor = startOfMonth(state.rangeStart);
   while (cursor < state.rangeEnd) {
-    var nextMonth = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    var nextMonth = addMonths(cursor, 1);
     var bandStart = cursor < state.rangeStart ? state.rangeStart : cursor;
     var left = xForDate(bandStart);
     var width = xForDate(nextMonth < state.rangeEnd ? nextMonth : state.rangeEnd) - left;
@@ -720,29 +755,43 @@ function renderRuler(totalWidth) {
     cursor = nextMonth;
   }
 
-  if (state.zoom === 'week') {
-    cursor = new Date(state.rangeStart);
-    while (cursor < state.rangeEnd) {
-      var tick = document.createElement('div');
-      tick.className = 'tick';
-      tick.style.left = xForDate(cursor) + 'px';
-      ticks.appendChild(tick);
+  function addTick(date, label) {
+    var tick = document.createElement('div');
+    tick.className = 'tick';
+    tick.style.left = xForDate(date) + 'px';
+    ticks.appendChild(tick);
+    if (label) {
       var tl = document.createElement('div');
       tl.className = 'tick-label';
-      tl.style.left = xForDate(cursor) + 'px';
-      tl.textContent = fmtShort(cursor);
+      tl.style.left = xForDate(date) + 'px';
+      tl.textContent = label;
       ticks.appendChild(tl);
+    }
+  }
+
+  if (state.zoom === 'day') {
+    cursor = new Date(state.rangeStart);
+    while (cursor < state.rangeEnd) {
+      addTick(cursor, fmtShort(cursor));
+      cursor = addDays(cursor, 1);
+    }
+  } else if (state.zoom === 'week') {
+    cursor = new Date(state.rangeStart);
+    while (cursor < state.rangeEnd) {
+      addTick(cursor, fmtShort(cursor));
       cursor = addDays(cursor, 7);
     }
-  } else {
-    cursor = new Date(state.rangeStart);
-    cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1));
+  } else if (state.zoom === 'quarter') {
+    cursor = startOfQuarter(state.rangeStart);
     while (cursor < state.rangeEnd) {
-      var t2 = document.createElement('div');
-      t2.className = 'tick';
-      t2.style.left = xForDate(cursor) + 'px';
-      ticks.appendChild(t2);
-      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+      addTick(cursor, fmtQuarter(cursor));
+      cursor = addMonths(cursor, 3);
+    }
+  } else { // month
+    cursor = startOfMonth(state.rangeStart);
+    while (cursor < state.rangeEnd) {
+      addTick(cursor, null);
+      cursor = addMonths(cursor, 1);
     }
   }
 
@@ -822,10 +871,29 @@ function renderGroupHeader(name, totalWidth) {
   var group = document.createElement('div');
   group.className = 'sticky-group';
   group.style.width = stickyWidth() + 'px';
+
+  var collapsed = !!state.collapsed[name];
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'group-toggle';
+  btn.setAttribute('aria-expanded', String(!collapsed));
+  var chevron = document.createElement('span');
+  chevron.className = 'group-chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  chevron.textContent = collapsed ? '\u25B8' : '\u25BE';
+  var text = document.createElement('span');
+  text.textContent = name || '(no group)';
+  btn.appendChild(chevron);
+  btn.appendChild(text);
+  btn.addEventListener('click', function () {
+    state.collapsed[name] = !state.collapsed[name];
+    render();
+  });
+
   var cell = document.createElement('div');
   cell.className = 'sticky-col name';
   cell.style.width = stickyWidth() + 'px';
-  cell.textContent = name || '(no group)';
+  cell.appendChild(btn);
   group.appendChild(cell);
   row.appendChild(group);
 
@@ -898,7 +966,10 @@ function render() {
   elInner.appendChild(todayLine);
 
   groupedTasks().forEach(function (g) {
-    if (g.name !== null) elInner.appendChild(renderGroupHeader(g.name, totalWidth));
+    if (g.name !== null) {
+      elInner.appendChild(renderGroupHeader(g.name, totalWidth));
+      if (state.collapsed[g.name]) return;
+    }
     g.tasks.forEach(function (task) { elInner.appendChild(renderRow(task, totalWidth)); });
   });
 
@@ -1033,12 +1104,14 @@ function attachKeyboard(bar, task) {
 
 /* ---------- zoom + today controls ---------- */
 
-document.getElementById('zoom-week').addEventListener('click', function () { setZoom('week'); });
-document.getElementById('zoom-month').addEventListener('click', function () { setZoom('month'); });
+document.querySelectorAll('.btn-group [data-zoom]').forEach(function (btn) {
+  btn.addEventListener('click', function () { setZoom(btn.dataset.zoom); });
+});
 function setZoom(z) {
   state.zoom = z;
-  document.getElementById('zoom-week').setAttribute('aria-pressed', String(z === 'week'));
-  document.getElementById('zoom-month').setAttribute('aria-pressed', String(z === 'month'));
+  document.querySelectorAll('.btn-group [data-zoom]').forEach(function (btn) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.zoom === z));
+  });
   render();
   scrollToToday();
 }
