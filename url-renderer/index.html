@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>URL Renderer Widget</title>
     <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
     <style>
@@ -10,7 +10,17 @@
             margin: 0;
             font-family: system-ui, sans-serif;
         }
-
+        .skip-link {
+            position: absolute;
+            top: -100px;
+            left: 0;
+            z-index: 100;
+            background: #fff;
+            padding: 8px 12px;
+        }
+        .skip-link:focus {
+            top: 0;
+        }
         /* GitHub-style error messages */
         .error {
             display: flex;
@@ -22,32 +32,27 @@
             border: 1px solid rgba(207, 34, 46, 0.2);
             border-left: 4px solid #cf222e;
             border-radius: 6px;
-            font-size: 14px;
+            font-size: 0.875rem;
             color: #cf222e;
         }
-
         .error::before {
             content: "⚠";
-            font-size: 16px;
+            font-size: 1rem;
             font-weight: bold;
             flex-shrink: 0;
         }
-
         .error-content {
             flex: 1;
         }
-
         .error-title {
             font-weight: 600;
             margin: 0 0 4px 0;
         }
-
         .error-message {
             margin: 0;
             color: #656d76;
-            font-size: 13px;
+            font-size: 0.8125rem;
         }
-
         iframe {
             width: 100%;
             height: 100vh;
@@ -55,18 +60,67 @@
         }
     </style>
 </head>
-
 <body>
-    <div id="content">
-        <div class="error">
-            <div class="error-content">
-                <div class="error-title">Configuration Required</div>
-                <div class="error-message">Select a URL column in the configuration panel</div>
+    <a href="#main" class="skip-link">Skip to main content</a>
+    <header>
+        <h1 style="position:absolute;left:-9999px;">URL Renderer Widget</h1>
+    </header>
+    <main id="main">
+        <div id="content">
+            <div class="error" role="alert">
+                <div class="error-content">
+                    <div class="error-title">Configuration Required</div>
+                    <div class="error-message">Select a URL column in the configuration panel</div>
+                </div>
             </div>
         </div>
-    </div>
-
+    </main>
     <script>
+        'use strict';
+
+        function logSecurity(level, action, details) {
+            const ts = new Date().toISOString();
+            const msg = '[' + ts + '] [' + level + '] ' + action;
+            if (level === 'ERROR') console.error(msg, details || '');
+            else if (level === 'WARN') console.warn(msg, details || '');
+            else console.log(msg, details || '');
+        }
+
+        function renderError(title, message) {
+            const content = document.getElementById('content');
+            content.textContent = '';
+
+            const wrap = document.createElement('div');
+            wrap.className = 'error';
+            wrap.setAttribute('role', 'alert');
+
+            const inner = document.createElement('div');
+            inner.className = 'error-content';
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'error-title';
+            titleEl.textContent = title;
+
+            const msgEl = document.createElement('div');
+            msgEl.className = 'error-message';
+            msgEl.textContent = message;
+
+            inner.appendChild(titleEl);
+            inner.appendChild(msgEl);
+            wrap.appendChild(inner);
+            content.appendChild(wrap);
+        }
+
+        function renderIframe(url) {
+            const content = document.getElementById('content');
+            content.textContent = '';
+
+            const iframe = document.createElement('iframe');
+            iframe.src = url; // set via property, not string concatenation — no markup injection risk
+            iframe.title = 'URL Content';
+            content.appendChild(iframe);
+        }
+
         // Grist initialization
         grist.ready({
             columns: [{
@@ -81,36 +135,30 @@
         // Content updates
         grist.onRecord((record, mappings) => {
             const mapped = grist.mapColumnNames(record);
-            const content = document.getElementById('content');
 
             if (!mapped || !mapped.url) {
-                content.innerHTML = `
-                    <div class="error">
-                        <div class="error-content">
-                            <div class="error-title">No URL Found</div>
-                            <div class="error-message">The cell is empty or the column is not configured</div>
-                        </div>
-                    </div>
-                `;
+                renderError('No URL Found', 'The cell is empty or the column is not configured');
                 return;
             }
 
-            // Simple URL validation
+            let parsed;
             try {
-                new URL(mapped.url);
-                content.innerHTML = `<iframe src="${mapped.url}" title="URL Content"></iframe>`;
+                parsed = new URL(mapped.url);
             } catch (e) {
-                content.innerHTML = `
-                    <div class="error">
-                        <div class="error-content">
-                            <div class="error-title">Invalid URL</div>
-                            <div class="error-message">The URL format is not valid</div>
-                        </div>
-                    </div>
-                `;
+                logSecurity('WARN', 'URL parse failed', e.message);
+                renderError('Invalid URL', 'The URL format is not valid');
+                return;
             }
+
+            // Only allow http/https — new URL() alone would happily accept javascript:, data:, etc.
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+                logSecurity('WARN', 'Blocked non-http(s) protocol', parsed.protocol);
+                renderError('Invalid URL', 'Only http and https links can be displayed');
+                return;
+            }
+
+            renderIframe(parsed.href);
         });
     </script>
 </body>
-
 </html>
